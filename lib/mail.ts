@@ -41,6 +41,9 @@ function transporter(): Transporter {
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_PORT === 465,
+      // Without an explicit name, nodemailer sends EHLO [127.0.0.1] (the host's
+      // name has no dot), which the Workspace relay rejects with 421 4.7.0.
+      name: 'gmc.bt',
       // No auth: the relay authorises this host by IP. Passing `auth` at all makes
       // nodemailer attempt AUTH, which the relay does not expect from us.
       pool: true,
