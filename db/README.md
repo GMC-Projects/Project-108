@@ -15,6 +15,7 @@ gmc-app). These migrations create the `p108_`-prefixed tables there so gmc-app c
 | `migrations/006_p108_fee_choice_and_consent.sql` | `covers_fee`, `charged_total`, `offered_amount` (the donor's choice on the processing fee) + `consent_updates`/`consent_text`/`consent_version`/`consent_at` (mailing-list permission, stored with the wording it was granted under) |
 | `migrations/007_drop_p108_subscribers.sql` | Drops `p108_subscribers`, created in error by 006 — at that point every consenter was a donor, so it duplicated the payment row |
 | `migrations/008_p108_subscribers.sql` | Reinstates `p108_subscribers`, now that `/sign-up` lets non-donors join and they have no payment row to live on |
+| `migrations/010_p108_broadcasts.sql` | `p108_broadcasts` (the livestream message and its bulk-run state) + `p108_broadcast_sends` (one row per recipient, worked in batches by `/api/broadcast/tick`) |
 
 All migrations are **idempotent** (`CREATE TABLE IF NOT EXISTS`, etc.) and **namespaced** (`p108_` prefix),
 so they never collide with gmc's own tables and are safe to re-run.
