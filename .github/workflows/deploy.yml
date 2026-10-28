@@ -26,7 +26,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          envs: DK_API_KEY,DK_SUBMERCHANT_ID,DK_ACCOUNT,DATABASE_URL,PAYMENT_ACCESS_TOKEN,CRON_SECRET
+          envs: DK_API_KEY,DK_SUBMERCHANT_ID,DK_ACCOUNT,DATABASE_URL,PAYMENT_ACCESS_TOKEN,CRON_SECRET,SUBSCRIBE_SECRET
           script: |
             set -eu
             cd ~/Project-108
