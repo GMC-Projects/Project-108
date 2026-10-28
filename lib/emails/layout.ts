@@ -79,11 +79,67 @@ function chortenRow(): string {
   return [22, 22, 22, 22, 32, 22, 22, 22, 22].map(img).join("");
 }
 
+/**
+ * Keep the email in its light design when the reader's mail app is in dark mode.
+ *
+ * Two layers, both safe to ignore for clients that do not understand them:
+ *   - `color-scheme: light only` (meta + CSS): Apple Mail, iOS Mail, Outlook for Mac
+ *     and newer Outlook apps leave the email alone;
+ *   - Outlook.com / Outlook apps rewrite colours and tag the elements they touched
+ *     with data-ogsc (text) / data-ogsb (background). Every inline colour in the
+ *     email gets a class here, and a matching !important rule puts the original
+ *     back. Generated from the HTML itself, so any template using layout() is
+ *     covered without hand-maintained class names.
+ * Deliberately no background-image or text-clip tricks: in some apps they leave
+ * light text on a light background, which is worse than a dark email.
+ */
+function lightOnly(html: string): string {
+  const fg = new Set<string>();
+  const bg = new Set<string>();
+  const tagged = html.replace(/<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g, (tag, name: string, attrs: string) => {
+    const style = /\sstyle="([^"]*)"/.exec(attrs)?.[1] ?? "";
+    const classes: string[] = [];
+    const c = /(?:^|;)\s*color:\s*#([0-9a-fA-F]{6})\b/.exec(style);
+    if (c) {
+      const v = c[1].toLowerCase();
+      fg.add(v);
+      classes.push(`p108c-${v}`);
+    }
+    const b =
+      /(?:^|;)\s*background(?:-color)?:\s*#([0-9a-fA-F]{6})\b/.exec(style) ??
+      /\sbgcolor="#([0-9a-fA-F]{6})"/.exec(attrs);
+    if (b) {
+      const v = b[1].toLowerCase();
+      bg.add(v);
+      classes.push(`p108b-${v}`);
+    }
+    if (!classes.length) return tag;
+    const withClass = /\sclass="/.test(attrs)
+      ? attrs.replace(/\sclass="([^"]*)"/, (_m, k: string) => ` class="${k} ${classes.join(" ")}"`)
+      : ` class="${classes.join(" ")}"${attrs}`;
+    return `<${name}${withClass}>`;
+  });
+  const rules = [
+    ":root{color-scheme:light only;supported-color-schemes:light only;}",
+    ...[...fg].map((v) => `[data-ogsc] .p108c-${v},.p108c-${v}[data-ogsc]{color:#${v} !important;}`),
+    ...[...bg].map((v) => `[data-ogsb] .p108b-${v},.p108b-${v}[data-ogsb]{background-color:#${v} !important;}`),
+  ].join("\n");
+  return tagged.replace(
+    "</head>",
+    `  <meta name="color-scheme" content="light only" />
+  <meta name="supported-color-schemes" content="light only" />
+  <style>
+${rules}
+  </style>
+</head>`,
+  );
+}
+
 export function layout(body: string, opts: LayoutOptions = {}): string {
   const small = `font-family:${FONTS.body};font-size:12px;line-height:1.7;color:${C.inkSoft};`;
   const link = `color:${C.maroon};text-decoration:underline;`;
 
-  return `<!DOCTYPE html>
+  return lightOnly(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -129,5 +185,5 @@ export function layout(body: string, opts: LayoutOptions = {}): string {
     </td></tr>
   </table>
 </body>
-</html>`;
+</html>`);
 }
