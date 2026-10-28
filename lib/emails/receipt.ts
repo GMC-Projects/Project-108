@@ -4,10 +4,8 @@
  * The copy is Chholay Namgay's, near-verbatim. Two deliberate additions are marked
  * OPTIONAL below and are easy to cut if he would rather not have them.
  *
- * The shell (header, footer, palette, type) is a deliberate copy of gmc-app's
- * src/lib/email-templates-108.ts so this sits alongside the patron and payment-link
- * emails without looking like a different sender. It cannot be imported — the two
- * apps are separate deployments — so if that shell is restyled, restyle this too.
+ * The shell (frame, header, footer, palette, type) comes from ./layout, shared with
+ * every other Project 108 email; see that file for why gmc-app keeps its own copy.
  *
  * THIS EMAIL IS THE RECEIPT. Not an invoice (an invoice requests payment; this is
  * issued after the money moved) and not a tax receipt (that asserts deductibility,
@@ -25,99 +23,10 @@
  *     financial fact.
  */
 
-const C = {
-  maroon: "#4A1A2C",
-  maroonDeep: "#3A1320",
-  gold: "#C8A663",
-  cream: "#F2E9D8",
-  creamLight: "#FAF6ED",
-  ink: "#2D1419",
-  inkSoft: "#5A3640",
-  ruleLight: "rgba(74, 26, 44, 0.12)",
-};
-
-const FONTS = {
-  display: "'Cormorant Garamond', 'Georgia', 'Times New Roman', serif",
-  body: "'Lora', 'Georgia', serif",
-  utility: "'Inter Tight', 'Helvetica Neue', Arial, sans-serif",
-};
-
-/** Escape anything the donor typed. Their name and dedication reach an HTML body. */
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { C, FONTS, esc, layout } from "./layout";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/**
- * Postal address for the email footer.
- *
- * Required by the client, and by the anti-spam rules of most jurisdictions the
- * campaign will reach: a commercial or campaign email must carry a physical address
- * someone could actually write to. Constructed from what GMCA supplied (postcode
- * 31101, Gelephu) — if a street or PO box exists it belongs here, since a postcode
- * alone is not somewhere post can be delivered.
- */
-const POSTAL_ADDRESS =
-  process.env.ORG_POSTAL_ADDRESS?.trim() ||
-  "Gelephu Mindfulness City Authority, Gelephu 31101, Bhutan";
-
-function layout(body: string, unsubscribeUrl?: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>108 Chortens</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Lora:wght@400;500;600&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet" />
-</head>
-<body style="margin:0;padding:0;background:${C.creamLight};font-family:${FONTS.body};color:${C.ink};">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.creamLight};">
-    <tr><td align="center" style="padding:40px 16px;">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-        <tr><td style="background:${C.maroon};padding:28px 36px;border-radius:4px 4px 0 0;border-top:2px solid ${C.gold};">
-          <table width="100%"><tr>
-            <td>
-              <div style="font-family:${FONTS.utility};font-size:10px;font-weight:600;letter-spacing:0.32em;text-transform:uppercase;color:${C.gold};margin-bottom:6px;">Project</div>
-              <div style="font-family:${FONTS.display};font-size:28px;font-weight:300;color:${C.cream};letter-spacing:0.02em;font-style:italic;">108</div>
-            </td>
-            <td align="right" valign="bottom">
-              <div style="font-family:${FONTS.utility};font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:rgba(242,233,216,0.5);">Jangchub Chortens</div>
-            </td>
-          </tr></table>
-        </td></tr>
-        <tr><td style="background:#ffffff;padding:36px;border-left:1px solid ${C.ruleLight};border-right:1px solid ${C.ruleLight};">
-          ${body}
-        </td></tr>
-        <tr><td style="background:#ffffff;padding:0 36px 28px;border-left:1px solid ${C.ruleLight};border-right:1px solid ${C.ruleLight};border-bottom:1px solid ${C.ruleLight};border-radius:0 0 4px 4px;">
-          <div style="width:36px;height:1px;background:${C.gold};opacity:0.5;margin:0 auto 20px;"></div>
-          <div style="text-align:center;font-family:${FONTS.utility};font-size:9px;letter-spacing:0.22em;text-transform:uppercase;color:${C.inkSoft};line-height:2;">
-            108 Jangchub Chortens Initiative
-          </div>
-          <div style="text-align:center;font-family:${FONTS.body};font-size:11px;color:${C.inkSoft};line-height:1.7;margin-top:8px;">
-            ${POSTAL_ADDRESS}
-          </div>
-          ${
-            unsubscribeUrl
-              ? `<div style="text-align:center;font-family:${FONTS.body};font-size:11px;color:${C.inkSoft};line-height:1.7;margin-top:6px;">
-            You are receiving updates because you asked to stay connected.
-            <a href="${unsubscribeUrl}" style="color:${C.inkSoft};text-decoration:underline;">Unsubscribe</a>.
-          </div>`
-              : ""
-          }
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-}
 
 export type ReceiptData = {
   donorName: string;
@@ -196,7 +105,7 @@ export function contributionReceiptEmail(d: ReceiptData): {
         <h2 style="font-family:${FONTS.display};font-size:28px;font-weight:300;font-style:italic;color:${C.ink};margin:0 0 8px;letter-spacing:0.01em;">
           Thank you
         </h2>
-        <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.gold};">
+        <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.goldText};">
           for your offering
         </div>
         <div style="width:36px;height:1px;background:${C.gold};opacity:0.5;margin:24px auto 0;"></div>
@@ -225,12 +134,12 @@ export function contributionReceiptEmail(d: ReceiptData): {
 
       ${
         d.dedication
-          ? `<div style="background:${C.maroonDeep};border-radius:4px;padding:24px 28px;margin:28px 0;">
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0;"><tr><td bgcolor="${C.maroonDeep}" style="background:${C.maroonDeep};border-radius:4px;padding:24px 28px;">
         <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.gold};margin-bottom:10px;">Your dedication</div>
         <div style="font-family:${FONTS.display};font-size:18px;font-style:italic;font-weight:300;line-height:1.6;color:${C.cream};">
           ${esc(d.dedication)}
         </div>
-      </div>`
+      </td></tr></table>`
           : ""
       }
 
@@ -242,7 +151,7 @@ export function contributionReceiptEmail(d: ReceiptData): {
         <span style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:${C.inkSoft};">Gelephu Mindfulness City</span>
       </p>
     `,
-      d.unsubscribeUrl,
+      { unsubscribeUrl: d.unsubscribeUrl },
     ),
     // Plain-text alternative. Not optional: a receipt that renders as a blank page
     // in a text-only client is not a receipt.
