@@ -6439,8 +6439,18 @@ body.scrolled .status .brand {
     min-height: var(--app-h, 100dvh);
   }
   /* Workforce, tightened so it fits one screen on most phones. */
+  /* Fill the whole stage: on taller phones the spare height is shared out
+     between the heading and the rows, so there are no empty bands. */
   .scene-manpower .stage__inner {
-    padding-bottom: 1.25rem;
+    min-height: var(--app-h, 100dvh);
+    justify-content: flex-start;
+    padding-bottom: 4rem;
+  }
+  .scene-manpower .manpower-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
   }
   .manpower-head {
     margin-top: 0;
