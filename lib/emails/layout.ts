@@ -100,6 +100,14 @@ function chortenRow(): string {
 const KEEP_BG = new Set(["4a1a2c", "3a1320"]);
 
 /**
+ * Gmail keeps a colour's hue when it inverts it, so the maroon-tinted ink came out
+ * pink. In Gmail only, the ink and maroon text colours are swapped for neutral greys
+ * of the same lightness, so dark mode shows white and light grey. In Gmail's light
+ * mode the ink looks the same; maroon links become dark grey (the user's choice).
+ */
+const GMAIL_NEUTRAL: Record<string, string> = { "2d1419": "1f1f1f", "5a3640": "474747", "4a1a2c": "323232", f2e9d8: "ffffff" };
+
+/**
  * Light text that must stay light on a maroon background in Gmail's dark mode.
  * Outside Gmail the two spans do nothing (the rules are scoped to Gmail's markup).
  */
@@ -140,6 +148,9 @@ function lightOnly(html: string): string {
     ":root{color-scheme:light only;supported-color-schemes:light only;}",
     "u + .body .gm-screen{background:#000;mix-blend-mode:screen;}",
     "u + .body .gm-diff{background:#000;mix-blend-mode:difference;}",
+    ...Object.entries(GMAIL_NEUTRAL)
+      .filter(([v]) => fg.has(v))
+      .map(([v, n]) => `u + .body .p108c-${v}{color:#${n} !important;}`),
     ...[...fg].map((v) => `[data-ogsc] .p108c-${v},.p108c-${v}[data-ogsc]{color:#${v} !important;}`),
     ...[...bg].map((v) => `[data-ogsb] .p108b-${v},.p108b-${v}[data-ogsb]{background-color:#${v} !important;}`),
   ].join("\n");
@@ -180,7 +191,7 @@ export function layout(body: string, opts: LayoutOptions = {}): string {
               <div style="font-family:${FONTS.utility};font-size:9px;font-weight:500;letter-spacing:0.3em;text-transform:uppercase;color:#9E8282;">Jangchub Chortens</div>
             </td></tr>
 
-            <tr><td background="${IMG}/watermark-108.png" style="background-image:url('${IMG}/watermark-108.png');background-repeat:no-repeat;background-position:center 30px;background-size:351px auto;padding:44px 40px 40px;">
+            <tr><td background="${IMG}/watermark-108-v2.png" style="background-image:url('${IMG}/watermark-108-v2.png');background-repeat:no-repeat;background-position:center 30px;background-size:351px auto;padding:44px 40px 40px;">
               ${body}
             </td></tr>
 
