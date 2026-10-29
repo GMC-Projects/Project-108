@@ -831,6 +831,25 @@
     },
   });
 
+  // 108.bt — pinned on desktop: the four places, then the dates along a
+  // drawn line, then the button. Phones and reduced motion show it whole.
+  registerScene({
+    selector: ".scene-108bt",
+    label: "A place for you among the 108",
+    num: "13 / 15",
+    act: "VI — The Invitation",
+    update(p) {
+      if (window.innerWidth <= 760 || reducedMotion) p = 1;
+      const steps = document.querySelectorAll(".scene-108bt .bt-step");
+      // 4 places, 4 dates, button
+      const at = [0.08, 0.16, 0.24, 0.32, 0.46, 0.54, 0.62, 0.7, 0.8];
+      steps.forEach((el, i) => el.classList.toggle("show", p > (at[i] ?? 0.8)));
+      const dates = document.querySelector(".scene-108bt .bt-dates");
+      if (dates)
+        dates.style.setProperty("--line", easeOut(clamp((p - 0.42) / 0.3)));
+    },
+  });
+
   // Scene 14 — His Majesty's quote (second-last)
   registerScene({
     selector: ".scene-gesture",
@@ -846,10 +865,20 @@
   // Scene 15 — Invitation
   registerScene({
     selector: ".scene-invitation",
-    label: "Two ways to take part",
+    label: "Three ways to take part",
     num: "15 / 15",
     act: "VI — The Invitation",
-    update(p) {},
+    // Desktop: the lede, then each card in turn, then the contact line.
+    // Phones and reduced motion show it whole.
+    update(p) {
+      if (window.innerWidth <= 768 || reducedMotion) p = 1;
+      const steps = document.querySelectorAll(
+        ".scene-invitation .inv-lede, .scene-invitation .inv-card, .scene-invitation .inv-meta",
+      );
+      steps.forEach((el, i) =>
+        el.classList.toggle("show", p > 0.04 + i * 0.12),
+      );
+    },
   });
 
   /* ---------------- Multiplication grid setup ---------------- */

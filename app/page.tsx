@@ -3,7 +3,8 @@
 import Script from "next/script";
 import "./scroll.css";
 
-import RegistrationNotice from "@/components/ui/RegistrationNotice";
+import NoticeMarquee from "@/components/ui/NoticeMarquee";
+import LivePill from "@/components/ui/LivePill";
 import StatusBar from "@/components/ui/StatusBar";
 import FormModal from "@/components/ui/FormModal";
 import OrgFormModal from "@/components/ui/OrgFormModal";
@@ -24,12 +25,13 @@ import SceneManpower from "@/components/scenes/SceneManpower";
 import SceneVolunteers from "@/components/scenes/SceneVolunteers";
 import SceneCompletion from "@/components/scenes/SceneCompletion";
 import SceneInvitation from "@/components/scenes/SceneInvitation";
+import Scene108bt from "@/components/scenes/Scene108bt";
 import SceneGesture from "@/components/scenes/SceneGesture";
 
 export default function ScrollPage() {
   return (
     <>
-      <RegistrationNotice />
+      <NoticeMarquee />
       <StatusBar />
 
       <div className="rail" aria-hidden="true">
@@ -49,9 +51,11 @@ export default function ScrollPage() {
       <SceneManpower />
       <SceneVolunteers />
       <SceneCompletion />
+      <Scene108bt />
       <SceneInvitation />
       <SceneGesture />
 
+      <LivePill />
       <FloatTopButton />
       <FormModal />
       <OrgFormModal />

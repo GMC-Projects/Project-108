@@ -1,6 +1,10 @@
 "use client";
 import { useState } from "react";
+import { offeringHref } from "@/lib/links";
+import { useLivestream } from "@/lib/useLivestream";
 
+// Brochure buttons are commented out below; restore them together with this.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BROCHURE_HREF = "/assets/Project_108.pdf";
 
 declare function gtag(...args: unknown[]): void;
@@ -11,6 +15,11 @@ function trackEvent(name: string, params?: Record<string, string>) {
 
 export default function StatusBar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { phase, link } = useLivestream();
+  // On the day, Watch Live takes the primary slot from Take Part.
+  const live = phase === "live";
+  const watchLabel =
+    phase === "before" ? "Livestream" : live ? "Watch Live" : "Recording";
 
   function scrollToInvitation(e: React.MouseEvent) {
     e.preventDefault();
@@ -26,8 +35,9 @@ export default function StatusBar() {
       <header className="status" role="banner">
         <span className="brand">Project 108 · Bhutan · 1 November 2026</span>
 
-        {/* ── Desktop: two plain buttons ── */}
+        {/* ── Desktop buttons ── */}
         <div className="status-split" aria-label="Actions">
+          {/* Download Brochure — hidden for now.
           <a
             href={BROCHURE_HREF}
             target="_blank"
@@ -52,7 +62,7 @@ export default function StatusBar() {
               <path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4" />
               <path d="m7 10 5 5 5-5" />
             </svg>
-          </a>
+          </a> */}
           <a
             href="#scene-invitation"
             className="status-split__btn status-split__btn--primary"
@@ -95,6 +105,7 @@ export default function StatusBar() {
           >
             ×
           </button>
+          {/* Download Brochure — hidden for now.
           <a
             href={BROCHURE_HREF}
             target="_blank"
@@ -121,10 +132,45 @@ export default function StatusBar() {
               <path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4" />
               <path d="m7 10 5 5 5-5" />
             </svg>
+          </a> */}
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`status-drawer__btn${live ? " status-drawer__btn--primary" : ""}`}
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              trackEvent("livestream_click", { location: "nav_mobile" });
+            }}
+          >
+            <span className="status-drawer__live">
+              {live && <span className="live-dot" aria-hidden="true" />}
+              {watchLabel}
+            </span>
+            <span className="status-drawer__arrow" aria-hidden="true">
+              ↗
+            </span>
+          </a>
+          <a
+            href={offeringHref("nav_mobile")}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="status-drawer__btn"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              trackEvent("outbound_108bt", { location: "nav_mobile" });
+            }}
+          >
+            Visit 108.bt
+            <span className="status-drawer__arrow" aria-hidden="true">
+              ↗
+            </span>
           </a>
           <a
             href="#scene-invitation"
-            className="status-drawer__btn status-drawer__btn--primary"
+            className={`status-drawer__btn${live ? "" : " status-drawer__btn--primary"}`}
             role="menuitem"
             onClick={scrollToInvitation}
           >

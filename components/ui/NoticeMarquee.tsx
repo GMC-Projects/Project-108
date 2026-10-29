@@ -45,7 +45,7 @@ function Message({
   hidden = false,
 }: {
   phase: Phase;
-  link: string | null;
+  link: string;
   hidden?: boolean;
 }) {
   const offering = (text: string) => (
@@ -53,42 +53,42 @@ function Message({
       {text}
     </Out>
   );
-  const watch = (text: string) =>
-    link ? (
-      <Out href={link} event="livestream_click" hidden={hidden}>
-        {text}
-      </Out>
-    ) : null;
+  const watch = (text: string) => (
+    <Out href={link} event="livestream_click" hidden={hidden}>
+      {text}
+    </Out>
+  );
 
   let body: React.ReactNode;
   if (phase === "live") {
     body = (
       <>
         Live now — the 108 chortens are being raised in Gelephu.{" "}
-        {watch("Watch the broadcast")}
-        {link && " · "}Placing has opened at {offering("108.bt")}
+        {watch("Watch the livestream")} · Placing has opened at{" "}
+        {offering("108.bt")}
       </>
     );
   } else if (phase === "after") {
     body = (
       <>
         Placing on {offering("108.bt")} closes 15 November, 23:59 Bhutan time —
-        leave your offering among the 108 chortens
-        {link && <> · {watch("Watch the recording")}</>}
+        leave your offering among the 108 chortens ·{" "}
+        {watch("Watch the recording")}
       </>
     );
   } else if (phase === "sealed") {
     body = (
       <>
         Everything placed on {offering("108.bt")} is sealed until 21 February
-        2027
+        2027 · {watch("Watch the recording")}
       </>
     );
   } else {
     body = (
       <>
-        Sign-up is open at {offering("108.bt")} — place yourself among the 108
-        chortens ahead of 1 November 2026
+        Sign-up is open at {offering("108.bt")} — a place for you among the
+        108, ahead of 1 November 2026 ·{" "}
+        {watch("Watch the livestream on 1 November")}
       </>
     );
   }
