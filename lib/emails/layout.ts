@@ -90,9 +90,14 @@ function chortenRow(): string {
  *     email gets a class here, and a matching !important rule puts the original
  *     back. Generated from the HTML itself, so any template using layout() is
  *     covered without hand-maintained class names.
- * Deliberately no background-image or text-clip tricks: in some apps they leave
- * light text on a light background, which is worse than a dark email.
+ *   - the Outlook phone apps ignore both of the above and recolour anyway. They do
+ *     not touch images, so every background also gets a solid PNG of its own colour
+ *     (public/email/bg-xxxxxx.png), and every text colour is repeated as
+ *     -webkit-text-fill-color, which the apps' WebKit honours but they do not rewrite.
+ *     In any client that leaves the email alone, both are the same colour as before.
  */
+const SOLID_BG = new Set(["ffffff", "faf6ed", "4a1a2c", "3a1320", "c8a663"]);
+
 function lightOnly(html: string): string {
   const fg = new Set<string>();
   const bg = new Set<string>();
@@ -114,6 +119,15 @@ function lightOnly(html: string): string {
       classes.push(`p108b-${v}`);
     }
     if (!classes.length) return tag;
+    let extra = c ? `-webkit-text-fill-color:#${c[1].toLowerCase()};` : "";
+    if (b && SOLID_BG.has(b[1].toLowerCase()) && !/background-image/.test(style)) {
+      extra += `background-image:url('${IMG}/bg-${b[1].toLowerCase()}.png');`;
+    }
+    if (extra) {
+      attrs = /\sstyle="/.test(attrs)
+        ? attrs.replace(/\sstyle="([^"]*)"/, (_m, v: string) => ` style="${v.replace(/;?\s*$/, ";")}${extra}"`)
+        : `${attrs} style="${extra}"`;
+    }
     const withClass = /\sclass="/.test(attrs)
       ? attrs.replace(/\sclass="([^"]*)"/, (_m, k: string) => ` class="${k} ${classes.join(" ")}"`)
       : ` class="${classes.join(" ")}"${attrs}`;
@@ -161,11 +175,11 @@ export function layout(body: string, opts: LayoutOptions = {}): string {
               <div style="font-family:${FONTS.utility};font-size:9px;font-weight:500;letter-spacing:0.3em;text-transform:uppercase;color:#9E8282;">Jangchub Chortens</div>
             </td></tr>
 
-            <tr><td background="${IMG}/watermark-108.png" style="background-image:url('${IMG}/watermark-108.png');background-repeat:no-repeat;background-position:center 30px;background-size:351px auto;padding:44px 40px 40px;">
+            <tr><td background="${IMG}/watermark-108.png" bgcolor="#ffffff" style="background-color:#ffffff;background-image:url('${IMG}/watermark-108.png'),url('${IMG}/bg-ffffff.png');background-repeat:no-repeat,repeat;background-position:center 30px,0 0;background-size:351px auto,auto;color:${C.ink};padding:44px 40px 40px;">
               ${body}
             </td></tr>
 
-            <tr><td align="center" style="padding:0 28px 30px;text-align:center;">
+            <tr><td align="center" bgcolor="#ffffff" style="background-color:#ffffff;color:${C.ink};padding:0 28px 30px;text-align:center;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr><td align="center" style="border-top:1px solid ${C.frameInner};padding-top:24px;font-size:0;line-height:0;">${chortenRow()}</td></tr>
               </table>

@@ -27,6 +27,14 @@ function inZone(at: Date, tz: string): { time: string; day: string } {
   };
 }
 
+/**
+ * Outlook's phone app turns dates into blue calendar links, which breaks the design.
+ * A zero-width non-joiner inside the month name stops the detection and is invisible.
+ */
+function noDateLink(s: string): string {
+  return s.replace(/(January|February|March|April|May|June|July|August|September|October|November|December)/g, (m) => `${m.slice(0, 3)}&zwnj;${m.slice(3)}`);
+}
+
 export type LivestreamData = {
   /** The stream URL. Required: an email whose only job is a link cannot go without one. */
   link: string;
@@ -61,12 +69,12 @@ export function livestreamEmail(d: LivestreamData): {
       <div style="text-align:center;padding:4px 0 28px;">
         <div style="width:36px;height:1px;background:${C.gold};margin:0 auto 24px;"></div>
         <h2 style="font-family:${FONTS.display};font-size:32px;font-weight:300;font-style:italic;color:${C.ink};margin:0 0 8px;">Watch live</h2>
-        <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.goldText};">${esc(bhutan.day)}</div>
+        <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.goldText};">${noDateLink(esc(bhutan.day))}</div>
         <div style="width:36px;height:1px;background:${C.gold};margin:24px auto 0;"></div>
       </div>
 
       <p style="${p}">Dear friends,</p>
-      <p style="${p}margin-bottom:28px;">Thank you for registering to join Project 108. On Sunday, 1 November, 108 stupas will be raised in a single day along the Mau River in Gelephu Mindfulness City, as part of a Royal vision of His Majesty The King of Bhutan.</p>
+      <p style="${p}margin-bottom:28px;">Thank you for registering to join Project 108. On Sunday, 1 Nov&zwnj;ember, 108 stupas will be raised in a single day along the Mau River in Gelephu Mindfulness City, as part of a Royal vision of His Majesty The King of Bhutan.</p>
 
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
         <tr><td align="center" bgcolor="${C.maroon}" style="background:${C.maroon};border-radius:3px;border-bottom:2px solid ${C.gold};">
@@ -81,7 +89,7 @@ export function livestreamEmail(d: LivestreamData): {
           .map(
             (r, i) => `<tr>
           <td style="${cell}${i === 0 ? "font-weight:600;" : ""}">${r.label}</td>
-          <td align="right" style="${cell}text-align:right;">${i === 0 ? `<b style="font-weight:600;">${r.time}</b>` : r.time} &middot; ${r.day}</td>
+          <td align="right" style="${cell}text-align:right;">${i === 0 ? `<b style="font-weight:600;">${r.time}</b>` : r.time} &middot; ${noDateLink(r.day)}</td>
         </tr>`,
           )
           .join("")}
@@ -105,9 +113,9 @@ export function livestreamEmail(d: LivestreamData): {
       <!-- 108.bt, as a P.S.: read last, so it never competes with "Watch live". -->
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px;">
         <tr><td align="center" style="border-top:1px solid ${C.frameInner};padding-top:28px;text-align:center;">
-          <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.goldText};">Also on November 1</div>
+          <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.goldText};">Also on Nov&zwnj;ember 1</div>
           <div style="font-family:${FONTS.display};font-size:24px;font-weight:300;font-style:italic;color:${C.ink};margin:8px 0 10px;">A Place For You Among the 108</div>
-          <p style="font-family:${FONTS.body};font-size:14px;line-height:1.7;color:${C.inkSoft};margin:0 auto 14px;max-width:420px;">Leave an offering among the 108 stupas: a moment, a memory, a prayer. Kept sealed until February 21, 2027.</p>
+          <p style="font-family:${FONTS.body};font-size:14px;line-height:1.7;color:${C.inkSoft};margin:0 auto 14px;max-width:420px;">Leave an offering among the 108 stupas: a moment, a memory, a prayer. Kept sealed until Feb&zwnj;ruary 21, 2027.</p>
           <a href="${OFFERING_URL}" style="font-family:${FONTS.utility};font-size:11px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:${C.maroon};text-decoration:none;border-bottom:1px solid ${C.gold};padding-bottom:3px;">Visit 108.bt</a>
         </td></tr>
       </table>
