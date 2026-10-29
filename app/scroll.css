@@ -6352,3 +6352,76 @@ body.scrolled .status .brand {
     padding: 0.8rem 1.3rem;
   }
 }
+
+/* Phones: these scenes show their end state, so they scroll as plain
+   one-screen sections instead of pinning with nothing to watch. */
+@media (max-width: 768px) {
+  .scene-title,
+  .scene-what,
+  .scene-scale,
+  .scene-river,
+  .scene-stack,
+  .scene-time,
+  .scene-volunteers,
+  .scene-gesture {
+    height: auto;
+  }
+  .scene-title .stage,
+  .scene-what .stage,
+  .scene-scale .stage,
+  .scene-river .stage,
+  .scene-stack .stage,
+  .scene-time .stage,
+  .scene-volunteers .stage,
+  .scene-gesture .stage {
+    position: relative;
+  }
+}
+
+/* Phones: one size for every section heading and one for every kicker, so
+   the scenes read as a set. The hero numeral, the Why 108 chapter titles and
+   His Majesty's quote keep their own sizes. */
+@media (max-width: 768px) {
+  .what-kicker .h,
+  .assembly-labels h2,
+  .scale-copy h2,
+  .spacing-copy h2,
+  .river-copy h2,
+  .time-head h2,
+  .manpower-head h2,
+  .vol-copy h2,
+  .compl-copy h2,
+  .inv-block h2,
+  .bt-title {
+    font-size: 1.6rem;
+    line-height: 1.2;
+  }
+  .what-kicker .kicker,
+  .assembly-labels .kicker,
+  .scale-copy .kicker,
+  .why-kicker .kicker,
+  .spacing-copy .kicker,
+  .river-copy .kicker,
+  .sg-tally .kicker,
+  .time-head .kicker,
+  .manpower-head .kicker,
+  .vol-copy .kicker,
+  .scene-108bt .kicker {
+    font-size: 0.68rem;
+    letter-spacing: 0.32em;
+  }
+}
+
+/* Phones: keep the opening label of these scenes clear of the notice bar
+   and the menu button, which sit over the top ~6rem of the screen. */
+@media (max-width: 768px) {
+  .scene-what .stage__inner {
+    padding-top: 6rem;
+  }
+  .what-chorten {
+    height: 55vh;
+  }
+  .scene-manpower .stage__inner {
+    padding-top: 5rem;
+  }
+}

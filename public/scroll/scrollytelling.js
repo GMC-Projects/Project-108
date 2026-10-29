@@ -61,6 +61,8 @@
     num: "02 / 15",
     act: "I — The Sacred Object",
     update(p) {
+      // Phones: no pin, so show the end state.
+      if (window.innerWidth <= 768) p = 1;
       const stg = document.querySelector(".scene-what .what-chorten");
       if (stg) stg.style.setProperty("--p", clamp(p));
       const truths = document.querySelectorAll(".scene-what .truth");
@@ -332,6 +334,8 @@
     num: "08 / 15",
     act: "III — The Sacred Formation",
     update(p) {
+      // Phones: no pin, so show the end state.
+      if (window.innerWidth <= 768) p = 1;
       const photo = document.querySelector(".scene-river .river-photo");
       const path = document.querySelector(".scene-river .river-path");
       if (photo) photo.style.setProperty("--p", clamp((p - 0.05) / 0.3));
@@ -556,6 +560,8 @@
     num: "10 / 15",
     act: "V — The Human Achievement",
     update(p) {
+      // Phones: no pin, so show the end state.
+      if (window.innerWidth <= 768) p = 1;
       const fill = document.querySelector(".scene-time .time-fill");
       if (fill) fill.style.setProperty("--p", clamp(p * 1.1));
       const markers = document.querySelectorAll(".scene-time .time-marker");
