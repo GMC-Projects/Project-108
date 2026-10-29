@@ -23,7 +23,7 @@
  *     financial fact.
  */
 
-import { C, FONTS, esc, layout } from "./layout";
+import { C, FONTS, esc, layout, gmailLight } from "./layout";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -137,7 +137,7 @@ export function contributionReceiptEmail(d: ReceiptData): {
           ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0;"><tr><td bgcolor="${C.maroonDeep}" style="background:${C.maroonDeep};border-radius:4px;padding:24px 28px;">
         <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.gold};margin-bottom:10px;">Your dedication</div>
         <div style="font-family:${FONTS.display};font-size:18px;font-style:italic;font-weight:300;line-height:1.6;color:${C.cream};">
-          ${esc(d.dedication)}
+          ${gmailLight(esc(d.dedication))}
         </div>
       </td></tr></table>`
           : ""

@@ -90,9 +90,22 @@ function chortenRow(): string {
  *     email gets a class here, and a matching !important rule puts the original
  *     back. Generated from the HTML itself, so any template using layout() is
  *     covered without hand-maintained class names.
- * Deliberately no background-image or text-clip tricks: in some apps they leave
- * light text on a light background, which is worse than a dark email.
+ *   - Gmail on iOS inverts every colour in dark mode and turns the maroon pink. It
+ *     leaves gradients alone, so maroon backgrounds are repeated as a one-colour
+ *     linear-gradient; the cream text on them is wrapped in gmailLight(), the
+ *     blend-mode trick that keeps it light (hteumeuleu.com, "Fixing Gmail's dark
+ *     mode issues with CSS Blend Modes"). White areas are deliberately left to
+ *     invert: forcing them white leaves Gmail's inverted text pale on white.
  */
+const KEEP_BG = new Set(["4a1a2c", "3a1320"]);
+
+/**
+ * Light text that must stay light on a maroon background in Gmail's dark mode.
+ * Outside Gmail the two spans do nothing (the rules are scoped to Gmail's markup).
+ */
+export function gmailLight(html: string): string {
+  return `<span class="gm-screen"><span class="gm-diff">${html}</span></span>`;
+}
 function lightOnly(html: string): string {
   const fg = new Set<string>();
   const bg = new Set<string>();
@@ -114,6 +127,10 @@ function lightOnly(html: string): string {
       classes.push(`p108b-${v}`);
     }
     if (!classes.length) return tag;
+    if (b && KEEP_BG.has(b[1].toLowerCase()) && !/background-image/.test(style)) {
+      const g = `background-image:linear-gradient(#${b[1]},#${b[1]});`;
+      attrs = attrs.replace(/\sstyle="([^"]*)"/, (_m, v: string) => ` style="${v.replace(/;?\s*$/, ";")}${g}"`);
+    }
     const withClass = /\sclass="/.test(attrs)
       ? attrs.replace(/\sclass="([^"]*)"/, (_m, k: string) => ` class="${k} ${classes.join(" ")}"`)
       : ` class="${classes.join(" ")}"${attrs}`;
@@ -121,6 +138,8 @@ function lightOnly(html: string): string {
   });
   const rules = [
     ":root{color-scheme:light only;supported-color-schemes:light only;}",
+    "u + .body .gm-screen{background:#000;mix-blend-mode:screen;}",
+    "u + .body .gm-diff{background:#000;mix-blend-mode:difference;}",
     ...[...fg].map((v) => `[data-ogsc] .p108c-${v},.p108c-${v}[data-ogsc]{color:#${v} !important;}`),
     ...[...bg].map((v) => `[data-ogsb] .p108b-${v},.p108b-${v}[data-ogsb]{background-color:#${v} !important;}`),
   ].join("\n");
@@ -147,7 +166,7 @@ export function layout(body: string, opts: LayoutOptions = {}): string {
   <title>Project 108</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Lora:wght@400;500;600&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet" />
 </head>
-<body style="margin:0;padding:0;background:${C.creamLight};font-family:${FONTS.body};color:${C.ink};">
+<body class="body" style="margin:0;padding:0;background:${C.creamLight};font-family:${FONTS.body};color:${C.ink};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.creamLight}" style="background:${C.creamLight};">
     <tr><td align="center" style="padding:40px 12px;">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background:#ffffff;border:1px solid ${C.gold};">

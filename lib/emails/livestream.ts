@@ -6,7 +6,7 @@
  * get a date line wrong (the US zones fall on Saturday 31 October).
  */
 
-import { C, FONTS, esc, layout } from "./layout";
+import { C, FONTS, esc, layout, gmailLight } from "./layout";
 
 /** 108.bt — the offering platform, mentioned as a P.S. */
 const OFFERING_URL = "https://108.bt";
@@ -78,7 +78,7 @@ export function livestreamEmail(d: LivestreamData): {
 
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
         <tr><td align="center" bgcolor="${C.maroon}" style="background:${C.maroon};border-radius:3px;border-bottom:2px solid ${C.gold};">
-          <a href="${link}" style="display:inline-block;padding:16px 40px;font-family:${FONTS.utility};font-size:12px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:${C.cream};text-decoration:none;">Watch live</a>
+          <a href="${link}" style="display:inline-block;padding:16px 40px;font-family:${FONTS.utility};font-size:12px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:${C.cream};text-decoration:none;">${gmailLight("Watch live")}</a>
         </td></tr>
       </table>
       <div style="text-align:center;font-family:${FONTS.body};font-size:12px;color:${C.inkSoft};margin:12px 0 32px;word-break:break-all;">or open <a href="${link}" style="color:${C.maroon};">${link}</a></div>
@@ -100,8 +100,8 @@ export function livestreamEmail(d: LivestreamData): {
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;"><tr><td bgcolor="${C.maroonDeep}" style="background:${C.maroonDeep};border-radius:4px;padding:22px 26px;">
         <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.gold};margin-bottom:8px;">Prayers for the day</div>
-        <div style="font-family:${FONTS.display};font-size:19px;font-style:italic;font-weight:300;line-height:1.6;color:${C.cream};">${prayers}</div>
-        <div style="font-family:${FONTS.body};font-size:14px;line-height:1.75;color:${C.cream};margin-top:14px;">${mantra}</div>
+        <div style="font-family:${FONTS.display};font-size:19px;font-style:italic;font-weight:300;line-height:1.6;color:${C.cream};">${gmailLight(prayers)}</div>
+        <div style="font-family:${FONTS.body};font-size:14px;line-height:1.75;color:${C.cream};margin-top:14px;">${gmailLight(mantra)}</div>
       </td></tr></table>
 
       <p style="font-family:${FONTS.body};font-size:15px;line-height:1.8;color:${C.ink};margin:0;">
