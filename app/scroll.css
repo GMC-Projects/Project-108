@@ -6425,3 +6425,62 @@ body.scrolled .status .brand {
     padding-top: 5rem;
   }
 }
+
+/* Phones: size pinned stages from the measured visible height (--app-h, set
+   by scrollytelling.js) rather than vh, which some iPhone browsers misreport. */
+@media (max-width: 768px) {
+  .stage {
+    height: var(--app-h, 100lvh);
+  }
+  .what-chorten {
+    height: calc(var(--app-vh, 1vh) * 55);
+  }
+  .scene-manpower .stage {
+    min-height: var(--app-h, 100dvh);
+  }
+  /* Workforce, tightened so it fits one screen on most phones. */
+  .scene-manpower .stage__inner {
+    padding-bottom: 1.25rem;
+  }
+  .manpower-head {
+    margin-top: 0;
+    margin-bottom: 0.6rem;
+  }
+  .manpower-row {
+    gap: 0.3rem 0.8rem;
+    padding: 0.5rem 0;
+  }
+  .manpower-foot {
+    margin-top: 0.9rem;
+  }
+  /* Workers and duration side by side under the bar, not stacked. */
+  .manpower-row .num {
+    grid-column: 1;
+  }
+  .manpower-row .dur {
+    grid-column: 2;
+  }
+  /* Too tall for this screen: a plain section with the bars filled. */
+  .scene-manpower.is-unpinned {
+    height: auto;
+  }
+  .scene-manpower.is-unpinned .stage {
+    position: relative;
+  }
+}
+/* Phones: the unpinned scenes may run taller than a very short screen
+   instead of squeezing their content together. */
+@media (max-width: 768px) {
+  .scene-what .stage,
+  .scene-scale .stage,
+  .scene-river .stage,
+  .scene-stack .stage,
+  .scene-time .stage,
+  .scene-volunteers .stage,
+  .scene-gesture .stage {
+    height: max(var(--app-h, 100lvh), 640px);
+  }
+  .what-chorten {
+    height: calc(max(var(--app-h, 100lvh), 640px) * 0.55);
+  }
+}

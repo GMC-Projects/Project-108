@@ -581,6 +581,7 @@
     num: "11 / 15",
     act: "V — The Human Achievement",
     update(p) {
+      if (document.querySelector(".scene-manpower.is-unpinned")) p = 1;
       const rows = document.querySelectorAll(".scene-manpower .manpower-row");
       rows.forEach((el, i) => {
         const start = i * 0.14;
@@ -1100,9 +1101,38 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       stableVH = window.innerHeight;
+      fitManpower();
       cacheSceneRects();
     }, 200);
   });
+
+  /* ---------------- Visible screen height (phones) ---------------- */
+  // Some iPhone browsers (Brave) report vh/lvh that don't match what they
+  // actually show, so on phones the CSS sizes stages from this measured height.
+  const root = document.documentElement;
+  function setAppHeight() {
+    const h = window.innerHeight;
+    root.style.setProperty("--app-h", h + "px");
+    root.style.setProperty("--app-vh", h / 100 + "px");
+  }
+  setAppHeight();
+  window.addEventListener("resize", setAppHeight);
+
+  // Workforce pins on phones only when it fits the screen; otherwise it
+  // scrolls as a plain section with its bars filled, so nothing is cut off.
+  // Rechecked only when the width changes, not when toolbars show/hide.
+  let fitWidth = 0;
+  function fitManpower() {
+    if (window.innerWidth === fitWidth) return;
+    fitWidth = window.innerWidth;
+    const sec = document.querySelector(".scene-manpower");
+    const inner = sec && sec.querySelector(".stage__inner");
+    if (!inner) return;
+    sec.classList.toggle(
+      "is-unpinned",
+      window.innerWidth <= 768 && inner.offsetHeight > window.innerHeight,
+    );
+  }
 
   /* ---------------- Scene rect cache ----------------
      getBoundingClientRect() forces a layout recalculation.
@@ -1183,6 +1213,8 @@
     buildVolunteersSVG();
     buildCompletionTrack();
     buildWhyDots();
+
+    fitManpower();
 
     // Cache scene positions once — tick loop reads these instead of calling
     // getBoundingClientRect() every frame (which forces layout on mobile).
