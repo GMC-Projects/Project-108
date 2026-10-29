@@ -114,7 +114,7 @@ export function livestreamEmail(d: LivestreamData): {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px;">
         <tr><td align="center" style="border-top:1px solid ${C.frameInner};padding-top:28px;text-align:center;">
           <div style="font-family:${FONTS.utility};font-size:9px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${C.goldText};">Also on Nov&zwnj;ember 1</div>
-          <div style="font-family:${FONTS.display};font-size:24px;font-weight:300;font-style:italic;color:${C.ink};margin:8px 0 10px;">A Place For You Among the 108</div>
+          <div style="font-family:${FONTS.display};font-size:24px;font-weight:300;font-style:italic;color:${C.ink};margin:8px 0 10px;">A Place for You Among the 108</div>
           <p style="font-family:${FONTS.body};font-size:14px;line-height:1.7;color:${C.inkSoft};margin:0 auto 14px;max-width:420px;">Leave an offering among the 108 stupas: a moment, a memory, a prayer. Kept sealed until Feb&zwnj;ruary 21, 2027.</p>
           <a href="${OFFERING_URL}" style="font-family:${FONTS.utility};font-size:11px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:${C.maroon};text-decoration:none;border-bottom:1px solid ${C.gold};padding-bottom:3px;">Visit 108.bt</a>
         </td></tr>
