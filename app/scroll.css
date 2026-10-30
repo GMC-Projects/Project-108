@@ -5924,8 +5924,7 @@ body.scrolled .status .brand {
   gap: 0.6em;
 }
 
-/* Take Part: four cards need more width than three. Restore with the
-   Volunteer card in SceneInvitation.
+/* Take Part: four cards need more width than three. */
 .scene-invitation .inv-block {
   max-width: 78rem;
 }
@@ -5941,7 +5940,7 @@ body.scrolled .status .brand {
   .inv-cards {
     grid-template-columns: 1fr;
   }
-} */
+}
 /* Secondary text action above a card's button, so the button keeps its
    place at the bottom in line with the other cards. */
 .inv-card__link {
@@ -6492,5 +6491,147 @@ body.scrolled .status .brand {
   }
   .what-chorten {
     height: calc(max(var(--app-h, 100lvh), 640px) * 0.55);
+  }
+}
+
+/* ─────────────────────── Livestream player ─────────────────────── */
+/* Opened from any YouTube link on the page; see LivestreamModal.tsx. */
+.stream-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.35s ease,
+    visibility 0.35s ease;
+}
+.stream-modal.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.stream-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 2, 4, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+}
+.stream-modal__frame {
+  position: relative;
+  width: min(1200px, 100%, calc((100dvh - 7rem) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--gold-faint);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.85);
+  transform: translateY(20px) scale(0.98);
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.stream-modal.is-open .stream-modal__frame {
+  transform: none;
+}
+.stream-modal__frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.stream-modal__bar {
+  position: relative;
+  width: min(1200px, 100%, calc((100dvh - 7rem) * 16 / 9));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.stream-modal__yt {
+  font-family: var(--font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-size: 0.66rem;
+  color: rgba(242, 233, 216, 0.6);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.stream-modal__yt:hover {
+  color: var(--gold);
+}
+.stream-modal__close {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  border: 1px solid var(--gold-faint);
+  background: none;
+  color: var(--cream);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+.stream-modal__close:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+@media (prefers-reduced-motion: reduce) {
+  .stream-modal__frame {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Architectural elevation, mobile: the chorten assembles behind the list as a
+   watermark, so the text gets the whole screen. */
+@media (max-width: 768px) {
+  .scene-assembly .stage__inner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 5.5rem 1.5rem 2rem;
+    overflow: hidden;
+  }
+  .scene-assembly .assembly-stage {
+    position: absolute;
+    inset: 4.5rem 0 1.5rem;
+    height: auto;
+    max-height: none;
+    align-items: center;
+    opacity: 0.16;
+    pointer-events: none;
+  }
+  .scene-assembly .assembly-img-stack {
+    height: 100%;
+    transform: none;
+  }
+  .scene-assembly .assembly-labels {
+    position: relative;
+    height: auto;
+    transform: none;
+  }
+  .scene-assembly .assy-item {
+    padding: 0.5rem 0;
+  }
+  .scene-assembly .assy-item .desc {
+    display: block;
+    font-size: 0.74rem;
+    line-height: 1.35;
+  }
+}
+/* Short phones: titles only, so all seven still fit. */
+@media (max-width: 768px) and (max-height: 760px) {
+  .scene-assembly .assy-item .desc {
+    display: none;
   }
 }
