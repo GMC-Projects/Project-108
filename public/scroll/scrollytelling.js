@@ -872,7 +872,7 @@
   // Scene 15 — Invitation
   registerScene({
     selector: ".scene-invitation",
-    label: "Three ways to take part",
+    label: "Four ways to take part",
     num: "15 / 15",
     act: "VI — The Invitation",
     // Desktop: the lede, then each card in turn, then the contact line.

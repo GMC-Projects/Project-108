@@ -134,14 +134,14 @@ export default function SceneInvitation() {
         <div className="stage__inner">
           <div className="inv-block">
             <h2>
-              Three ways to <em>take part</em>.
+              Four ways to <em>take part</em>.
             </h2>
             <p className="inv-lede">
-              Wherever you are, <em>witness</em> the rising, make an{" "}
-              <em>offering</em>, or <em>seal</em> a prayer among the 108.
+              Wherever you are — <em>join</em> the build, <em>witness</em> the
+              rising, make an <em>offering</em>, or <em>seal</em> a prayer among
+              the 108.
             </p>
             <div className="inv-cards">
-              {/* Become a Volunteer — hidden for now.
               <div className="inv-card">
                 <p className="lbl">Join the build day</p>
                 <p className="ttl">
@@ -171,7 +171,7 @@ export default function SceneInvitation() {
                 >
                   Register to show your interest
                 </a>
-              </div> */}
+              </div>
               <StreamCard phase={phase} link={link} />
               <div className="inv-card ghost">
                 <p className="lbl">Offering</p>
