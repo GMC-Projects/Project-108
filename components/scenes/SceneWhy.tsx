@@ -636,7 +636,9 @@ export default function SceneWhy() {
               <article className="why-chapter" data-chap="E">
                 <div className="vis" aria-hidden="true">
                   <img
-                    src="/assets/Mandala.png"
+                    src="/assets/Mandala.webp"
+                    loading="lazy"
+                    decoding="async"
                     alt="Mandala representing 108, a number of completeness in Buddhist tradition"
                     className="why-mandala"
                   />

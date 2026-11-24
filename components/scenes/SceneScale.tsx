@@ -22,7 +22,7 @@ export default function SceneScale() {
               <div className="scale-ground"></div>
               <div className="scale-yaxis" aria-hidden="true"></div>
               <div className="scale-fig fig-person" data-fig="1">
-                <img src="/assets/people2.png" alt="Human figure to scale" />
+                <img src="/assets/people2.webp" alt="Human figure to scale" loading="lazy" decoding="async" />
                 <span className="lbl">
                   <strong>1.75 m</strong>Human
                 </span>

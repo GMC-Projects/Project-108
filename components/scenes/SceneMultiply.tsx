@@ -16,10 +16,10 @@ export default function SceneMultiply() {
                   <img src="/assets/2.png" alt="" draggable="false" />
                 </div>
                 <div className="mi-part mi-p3">
-                  <img src="/assets/3.png" alt="" draggable="false" />
+                  <img src="/assets/3.webp" alt="" draggable="false" loading="lazy" decoding="async" />
                 </div>
                 <div className="mi-buddha">
-                  <img src="/assets/Buddha.png" alt="" draggable="false" />
+                  <img src="/assets/Buddha.webp" alt="" draggable="false" loading="lazy" decoding="async" />
                 </div>
                 <div className="mi-part mi-p4">
                   <img src="/assets/4.png" alt="" draggable="false" />

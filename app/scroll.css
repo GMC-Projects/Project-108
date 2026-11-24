@@ -2358,7 +2358,7 @@ body.scrolled .status .brand {
 .river-photo {
   position: absolute;
   inset: 0;
-  background-image: url("/assets/river-tint2.png");
+  background-image: url("/assets/river-tint2.webp");
   background-size: cover;
   background-position: center;
   --p: 0;

@@ -14,7 +14,7 @@ export default function SceneWhat() {
             <div className="what-chorten" aria-hidden="true">
               <img src="/assets/chorten-front.png" alt="Front elevation of a Jangchub Chorten, 15 metres tall" />
               <img
-                src="/assets/brush-stroke.png"
+                src="/assets/brush-stroke.webp"
                 alt=""
                 className="what-chorten__ground"
               />
