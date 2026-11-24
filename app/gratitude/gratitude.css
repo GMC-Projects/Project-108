@@ -1,0 +1,482 @@
+/* ─────────────────────── /gratitude ───────────────────────
+   One fixed WebGL stage (the particle chorten) behind a tall scroll story.
+   Each chapter is a sticky screen of copy; GratitudeStory.tsx sets --o on it
+   from scroll progress. Tokens come from globals.css. */
+
+.gr-page {
+  background: var(--maroon-night);
+  color: var(--cream);
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+.gr-page em {
+  font-style: italic;
+  color: var(--gold-bright);
+}
+
+.gr-stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
+  background: radial-gradient(
+    ellipse at 60% 40%,
+    var(--maroon-deeper) 0%,
+    var(--maroon-night) 70%
+  );
+  touch-action: pan-y;
+}
+.gr-story {
+  position: relative;
+}
+.gr-ch {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+.gr-live {
+  pointer-events: auto;
+}
+.gr-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+}
+.gr-copy {
+  position: relative;
+  width: min(30rem, 42vw);
+  margin-left: max(4vw, calc((100vw - 72rem) / 2));
+  opacity: var(--o, 0);
+  transform: translateY(calc((1 - var(--o, 0)) * 14px));
+}
+
+/* A soft dark pool behind the copy, so the valley's dots don't run through it. */
+@media (min-width: 901px) {
+  .gr-copy::before {
+    content: "";
+    position: absolute;
+    inset: -3rem -3rem -1rem -6rem;
+    z-index: -1;
+    background: radial-gradient(
+      closest-side,
+      rgba(13, 4, 8, 0.7),
+      rgba(13, 4, 8, 0.35) 65%,
+      rgba(13, 4, 8, 0)
+    );
+    pointer-events: none;
+  }
+}
+
+.gr-kicker {
+  font-family: var(--font-utility);
+  font-size: 0.66rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 1rem;
+}
+.gr-h1,
+.gr-h2 {
+  font-family: var(--font-display);
+  font-weight: 300;
+  text-wrap: balance;
+  margin: 0;
+}
+.gr-h1 {
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  line-height: 1.02;
+  margin-bottom: 1.2rem;
+}
+.gr-h2 {
+  font-size: clamp(2rem, 4.2vw, 3.2rem);
+  line-height: 1.08;
+  margin-bottom: 1rem;
+}
+.gr-lede {
+  color: rgba(242, 233, 216, 0.66);
+  margin: 0;
+}
+.gr-cue {
+  margin-top: 2.2rem;
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(242, 233, 216, 0.4);
+}
+.gr-cue::after {
+  content: "";
+  display: block;
+  width: 1px;
+  height: 2.4rem;
+  margin-top: 0.8rem;
+  background: linear-gradient(var(--gold), transparent);
+  transform-origin: top;
+  animation: gr-cue 2.2s ease-in-out infinite;
+}
+@keyframes gr-cue {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* Clocks */
+.gr-clock {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(4rem, 10vw, 7.5rem);
+  line-height: 0.95;
+  color: var(--gold-bright);
+  font-feature-settings: "onum";
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 0.2rem;
+  white-space: nowrap;
+}
+.gr-clock small {
+  font-size: 0.32em;
+  letter-spacing: 0.1em;
+  margin-left: 0.25em;
+  color: var(--gold);
+}
+.gr-event {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2.6vw, 1.9rem);
+  line-height: 1.25;
+  min-height: 4.8em;
+  margin: 0.8rem 0 0;
+  text-wrap: balance;
+}
+.gr-ticks {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 1.4rem;
+}
+.gr-ticks span {
+  flex: 1;
+  height: 2px;
+  background: var(--gold-faint-2);
+  transition: background 0.3s;
+}
+.gr-ticks span.on {
+  background: var(--gold);
+}
+/* Before dawn: the lines of thanks, stacked in one place, each shown in
+   turn (--lo), its words brightened one by one by GratitudeStory.tsx. */
+.gr-lines {
+  display: grid;
+}
+.gr-line {
+  grid-area: 1 / 1;
+  opacity: var(--lo, 0);
+}
+.gr-w {
+  opacity: 0.15;
+}
+.gr-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gr-w {
+    opacity: 1 !important;
+  }
+}
+/* Before dawn: each line's name. */
+.gr-moment {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(2.8rem, 6vw, 4.8rem);
+  line-height: 1;
+  color: var(--gold-bright);
+  margin: 0 0 0.2rem;
+  text-wrap: balance;
+}
+
+/* Find your light */
+.gr-field {
+  width: 100%;
+  background: rgba(42, 15, 26, 0.85);
+  color: var(--cream);
+  border: 1px solid var(--gold-faint);
+  border-radius: 4px;
+  padding: 0.8rem 1rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+}
+.gr-field::placeholder {
+  color: rgba(242, 233, 216, 0.4);
+}
+.gr-field:focus-visible,
+.gr-btn:focus-visible,
+.gr-results button:focus-visible {
+  outline: 1px solid var(--gold);
+  outline-offset: 3px;
+}
+.gr-results {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  max-height: 9.5rem;
+  overflow-y: auto;
+}
+.gr-results button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--gold-faint-2);
+  color: var(--cream);
+  padding: 0.5rem 0.2rem;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+}
+.gr-results button:hover {
+  color: var(--gold-bright);
+}
+.gr-no,
+.gr-card__lbl {
+  font-family: var(--font-utility);
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(242, 233, 216, 0.4);
+  align-self: center;
+  white-space: nowrap;
+}
+.gr-hint {
+  font-family: var(--font-utility);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(242, 233, 216, 0.4);
+  margin: 0.7rem 0 0;
+}
+.gr-card {
+  margin-top: 1.2rem;
+  border: 1px solid var(--gold-faint);
+  border-top: 2px solid var(--gold);
+  border-radius: 6px;
+  padding: 1.2rem 1.3rem;
+  background: rgba(26, 7, 16, 0.88);
+}
+.gr-card__num {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--gold-bright);
+  font-feature-settings: "onum";
+}
+.gr-card__name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.55rem;
+  line-height: 1.2;
+  margin: 0.5rem 0 0.2rem;
+}
+.gr-card__ded {
+  font-style: italic;
+  color: rgba(242, 233, 216, 0.66);
+  margin: 0 0 0.9rem;
+}
+.gr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-utility);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 0.7rem 1.2rem;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--gold);
+  background: none;
+  color: var(--gold-bright);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.gr-btn:hover {
+  background: var(--gold);
+  color: var(--maroon-night);
+}
+.gr-btn:active {
+  transform: translateY(1px);
+}
+.gr-copied {
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-left: 0.6rem;
+  word-break: break-all;
+}
+.gr-tip {
+  position: fixed;
+  z-index: 5;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  background: rgba(13, 4, 8, 0.92);
+  border: 1px solid var(--gold-faint);
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.gr-tip.on {
+  opacity: 1;
+}
+.gr-nogl {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 3;
+  text-align: center;
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  color: rgba(242, 233, 216, 0.5);
+}
+
+/* Every name */
+.gr-record {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    rgba(13, 4, 8, 0) 0,
+    var(--maroon-deeper) 14rem
+  );
+  padding: 16rem max(1.5rem, env(safe-area-inset-right, 0px)) 5rem
+    max(1.5rem, env(safe-area-inset-left, 0px));
+}
+.gr-record__in {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+.gr-record .gr-lede {
+  max-width: 38rem;
+}
+.gr-inscription {
+  margin: 2rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  line-height: 1.9;
+  text-align: justify;
+  text-wrap: pretty;
+}
+.gr-inscription.is-clipped {
+  max-height: 20rem;
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, #000 65%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, #000 65%, transparent);
+}
+.gr-sep {
+  color: var(--gold);
+  margin: 0 0.45em;
+}
+.gr-anon {
+  font-style: italic;
+  color: rgba(242, 233, 216, 0.66);
+}
+.gr-more {
+  margin-top: 1.2rem;
+}
+.gr-closing {
+  text-align: center;
+  margin-top: 6rem;
+}
+.gr-closing hr {
+  width: 36px;
+  height: 1px;
+  border: 0;
+  background: var(--gold);
+  margin: 0 auto 2rem;
+}
+.gr-closing p {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
+  line-height: 1.4;
+  max-width: 36rem;
+  margin: 0 auto;
+}
+.gr-foot {
+  margin-top: 5rem;
+  text-align: center;
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(242, 233, 216, 0.4);
+}
+
+.gr-credit {
+  display: block;
+  margin-top: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  font-size: 0.6rem;
+  color: rgba(242, 233, 216, 0.3);
+}
+
+/* Phones and narrow tablets: chorten above, copy at the bottom on a scrim. */
+@media (max-width: 900px) {
+  .gr-sticky {
+    align-items: flex-end;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  }
+  .gr-copy {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 4rem;
+    background: linear-gradient(
+      180deg,
+      rgba(13, 4, 8, 0) 0,
+      rgba(13, 4, 8, 0.86) 4rem
+    );
+  }
+  .gr-event {
+    min-height: 3.8em;
+  }
+  .gr-results {
+    max-height: 7rem;
+  }
+  .gr-inscription {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gr-cue::after {
+    animation: none;
+  }
+  .gr-copy {
+    transform: none;
+  }
+}
