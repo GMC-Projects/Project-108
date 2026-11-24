@@ -26,7 +26,10 @@
 import { C, FONTS, esc, layout, gmailLight } from "./layout";
 
 const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  n.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 export type ReceiptData = {
   donorName: string;
@@ -125,11 +128,9 @@ export function contributionReceiptEmail(d: ReceiptData): {
       </p>
 
       <p style="${p}">
-        On November 1st, all 108 Jangchub Chortens will be raised together in a
-        single day. If you would like to be with us on the day, you can
+        Please 
         <a href="${esc(d.signupUrl)}" style="color:${C.maroon};text-decoration:underline;">sign up here</a>
-        to receive the livestream link and prayers for the day, and to stay connected
-        with what unfolds next.
+        to stay connected with Project 108 and other developments in Gelephu Mindfulness City.
       </p>
 
       ${
