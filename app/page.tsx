@@ -11,6 +11,7 @@ import OrgFormModal from "@/components/ui/OrgFormModal";
 import SignUpModal from "@/components/ui/SignUpModal";
 import LivestreamModal from "@/components/ui/LivestreamModal";
 import FloatTopButton from "@/components/ui/FloatTopButton";
+import SmoothScroll from "@/components/SmoothScroll";
 
 import SceneTitle from "@/components/scenes/SceneTitle";
 import SceneWhat from "@/components/scenes/SceneWhat";
@@ -32,6 +33,7 @@ import SceneGesture from "@/components/scenes/SceneGesture";
 export default function ScrollPage() {
   return (
     <>
+      <SmoothScroll />
       <NoticeMarquee />
       <StatusBar />
 
@@ -64,7 +66,7 @@ export default function ScrollPage() {
       <LivestreamModal />
 
       <Script
-        src="/scroll/scrollytelling.js?v=28"
+        src="/scroll/scrollytelling.js?v=29"
         strategy="afterInteractive"
       />
       <Script src="/scroll/form.js" strategy="afterInteractive" />
