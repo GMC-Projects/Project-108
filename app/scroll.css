@@ -556,8 +556,11 @@ body.scrolled .status .brand {
 .rail__fill {
   height: 100%;
   background: linear-gradient(90deg, var(--gold-faint), var(--gold-bright));
-  width: 0%;
-  transition: width 0.15s linear;
+  /* Scaled, not resized: a transform needs no relayout each frame. */
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.15s linear;
 }
 
 .caption-bar {
@@ -2844,10 +2847,12 @@ body.scrolled .status .brand {
   top: 50%;
   height: 2px;
   background: linear-gradient(90deg, var(--maroon), var(--gold));
-  transform: translateY(-50%);
   --p: 0;
-  width: calc(var(--p) * 100%);
-  transition: width 0.25s ease;
+  /* Scaled, not resized: a transform needs no relayout each frame. */
+  width: 100%;
+  transform: translateY(-50%) scaleX(var(--p));
+  transform-origin: left center;
+  transition: transform 0.25s ease;
 }
 .time-marker {
   position: absolute;

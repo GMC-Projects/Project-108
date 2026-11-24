@@ -185,7 +185,8 @@ export default function SceneMultiplyController() {
 
       // Counter: blank during entire intro + crossfade; only show once
       // the grid is the sole thing on screen (p >= GRID_P_START).
-      if (numEl) numEl.textContent = gridP > 0 ? String(target) : "";
+      const num = gridP > 0 ? String(target) : "";
+      if (numEl && numEl.textContent !== num) numEl.textContent = num;
 
       // Fade grid in exactly as intro fades out — seamless crossfade
       grid.style.opacity = easeOut(
@@ -198,39 +199,74 @@ export default function SceneMultiplyController() {
       updateGrid(p);
     };
 
-    // ── rAF loop ────────────────────────────────────────────────────────────
+    // ── Scroll-driven frames ────────────────────────────────────────────────
+    // A frame runs only after a scroll (or a re-measure), and only while the
+    // scene is near the screen. The scene's position is measured once and
+    // again on resize or when the page's height changes, so a frame never
+    // asks the browser to lay the page out.
+    const touch = window.matchMedia("(pointer: coarse)").matches;
     let stableVH = window.innerHeight;
-    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const onResize = () => {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        stableVH = window.innerHeight;
-        measureCentreOffset();
-      }, 200);
+    let measuredWidth = window.innerWidth;
+    let sceneTop = 0;
+    let sceneH = 0;
+    const measureScene = () => {
+      sceneTop = scene.getBoundingClientRect().top + window.scrollY;
+      sceneH = scene.offsetHeight;
     };
-    window.addEventListener("resize", onResize);
 
     let rafId = 0;
+    let queued = false;
     let stopped = false;
-    const loop = () => {
+    let lastP = -1;
+    const frame = () => {
+      queued = false;
       if (stopped) return;
-      const r = scene.getBoundingClientRect();
-      const sceneH = scene.offsetHeight;
-      const travelled = -r.top;
-      const travel = Math.max(1, sceneH - stableVH);
-      const p = clamp(travelled / travel);
+      const top = sceneTop - window.scrollY;
+      if (top > stableVH * 1.5 || top + sceneH < -stableVH * 0.5) return;
+      const p = clamp(-top / Math.max(1, sceneH - stableVH));
+      if (p === lastP) return;
+      lastP = p;
       update(p);
-      rafId = requestAnimationFrame(loop);
+    };
+    const wake = () => {
+      if (queued || stopped) return;
+      queued = true;
+      rafId = requestAnimationFrame(frame);
+    };
+    const remeasure = () => {
+      measureScene();
+      lastP = -1;
+      wake();
     };
 
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const onResize = () => {
+      // A phone's address bar sliding in or out: same width, ignore.
+      if (touch && window.innerWidth === measuredWidth) return;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        measuredWidth = window.innerWidth;
+        stableVH = window.innerHeight;
+        measureCentreOffset();
+        remeasure();
+      }, 150);
+    };
+    window.addEventListener("resize", onResize, { passive: true });
+
+    let observer: ResizeObserver | null = null;
     if (window.matchMedia("(prefers-reduced-motion:reduce)").matches) {
       measureCentreOffset();
       update(1);
     } else {
       requestAnimationFrame(() => {
         measureCentreOffset();
-        rafId = requestAnimationFrame(loop);
+        remeasure();
       });
+      window.addEventListener("scroll", wake, { passive: true });
+      // Content above the scene can change height after load (fonts,
+      // images): re-measure when the page's height changes.
+      observer = new ResizeObserver(remeasure);
+      observer.observe(document.body);
     }
 
     return () => {
@@ -238,6 +274,8 @@ export default function SceneMultiplyController() {
       cancelAnimationFrame(rafId);
       if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", wake);
+      observer?.disconnect();
     };
   }, []);
 

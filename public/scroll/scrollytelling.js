@@ -15,6 +15,56 @@
   const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
   const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
+  // Touch screens scroll on the browser's own fast path; there the scenes
+  // follow the real scroll position instead of easing after it.
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+
+  /* ---------------- Cached lookups and writes ----------------
+     The scenes' elements are built once, so looking them up every frame is
+     wasted work. $ / $$ remember what they found (and look again if React
+     has replaced the node). setVar writes a style property only when its
+     value has changed, so an idle frame causes no style recalculation.
+  ---------------------------------------------------------------- */
+  const one = new Map();
+  const all = new Map();
+  function $(sel) {
+    let el = one.get(sel);
+    if (!el || !el.isConnected) {
+      el = document.querySelector(sel);
+      if (el) one.set(sel, el);
+    }
+    return el;
+  }
+  function $$(sel) {
+    let list = all.get(sel);
+    if (!list || !list.length || !list[0].isConnected) {
+      list = document.querySelectorAll(sel);
+      if (list.length) all.set(sel, list);
+    }
+    return list;
+  }
+  function setVar(el, name, v) {
+    const s = typeof v === "number" ? String(+v.toFixed(4)) : String(v);
+    const seen = el._vars || (el._vars = {});
+    if (seen[name] === s) return;
+    seen[name] = s;
+    el.style.setProperty(name, s);
+  }
+  function setText(el, text) {
+    if (el.textContent !== text) el.textContent = text;
+  }
+  // Element sizes, measured once and forgotten on resize (reading a size in
+  // the frame loop forces the browser to lay the page out again).
+  let sizes = new WeakMap();
+  function size(el) {
+    let s = sizes.get(el);
+    if (!s) {
+      s = [el.offsetWidth, el.offsetHeight];
+      if (s[0] && s[1]) sizes.set(el, s);
+    }
+    return s;
+  }
+
   /* ---------------- Scenes registry ----------------
      Each scene exposes a sticky `<div class="stage">` inside a
      tall section. We compute scroll progress (0..1) for the
@@ -23,15 +73,15 @@
   const sceneDefs = []; // {el, label, num, act, update}
 
   function registerScene({ selector, label, num, act, update }) {
-    const el = document.querySelector(selector);
+    const el = $(selector);
     if (!el) return;
     sceneDefs.push({ el, label, num, act, update: update || (() => {}) });
   }
 
   /* ---------------- Caption + rail ---------------- */
-  const captionNum = document.querySelector(".caption-bar .num");
-  const captionLbl = document.querySelector(".caption-bar .lbl");
-  const railFill = document.querySelector(".rail__fill");
+  const captionNum = $(".caption-bar .num");
+  const captionLbl = $(".caption-bar .lbl");
+  const railFill = $(".rail__fill");
 
   let lastSceneIdx = -1;
 
@@ -63,9 +113,9 @@
     update(p) {
       // Phones: no pin, so show the end state.
       if (window.innerWidth <= 768) p = 1;
-      const stg = document.querySelector(".scene-what .what-chorten");
-      if (stg) stg.style.setProperty("--p", clamp(p));
-      const truths = document.querySelectorAll(".scene-what .truth");
+      const stg = $(".scene-what .what-chorten");
+      if (stg) setVar(stg, "--p", clamp(p));
+      const truths = $$(".scene-what .truth");
       // Stagger four truths over progress 0.15..0.95
       truths.forEach((el, i) => {
         const start = 0.15 + i * 0.18;
@@ -82,8 +132,8 @@
     num: "03 / 15",
     act: "I — The Sacred Object",
     update(p) {
-      const parts = document.querySelectorAll(".scene-assembly .assy-part");
-      const items = document.querySelectorAll(".scene-assembly .assy-item");
+      const parts = $$(".scene-assembly .assy-part");
+      const items = $$(".scene-assembly .assy-item");
       const N = 7;
       // Stagger each part across progress segments. Each part takes 1/N
       // of the scroll, with a small overlap.
@@ -92,13 +142,13 @@
         const start = (i / N) * 0.9; // 0 .. 0.9
         const end = start + 0.15;
         const t = clamp((p - start) / (end - start));
-        el.style.setProperty("--p", easeOut(t));
+        setVar(el, "--p", easeOut(t));
       });
       items.forEach((el) => {
         const i = parseInt(el.dataset.part, 10) - 1; // 0..6
         const start = (i / N) * 0.9 + 0.04;
         const t = clamp((p - start) / 0.12);
-        el.style.setProperty("--p", t);
+        setVar(el, "--p", t);
         el.classList.toggle("lit", t > 0.8);
       });
     },
@@ -112,9 +162,9 @@
     act: "I — The Sacred Object",
     update(p) {
       if (window.innerWidth <= 768) p = 1;
-      const wrap = document.querySelector(".scene-scale .scale-scrolly");
-      const art = document.querySelector(".scene-scale .scale-art");
-      if (art) art.style.setProperty("--p", clamp(p));
+      const wrap = $(".scene-scale .scale-scrolly");
+      const art = $(".scene-scale .scale-art");
+      if (art) setVar(art, "--p", clamp(p));
       if (!wrap) return;
       // Figure reveal thresholds: person 0.10, building 0.40, chorten 0.70
       const figs = wrap.querySelectorAll(".scale-fig");
@@ -122,7 +172,7 @@
       figs.forEach((f, i) => {
         const t = thresholds[i] || 0;
         const local = clamp((p - t) / 0.18);
-        f.style.setProperty("--on", local);
+        setVar(f, "--on", local);
       });
       // data-stage drives tick visibility
       let stage = 0;
@@ -165,20 +215,20 @@
         anchorS = 1;
       }
 
-      const anchor = document.querySelector(".why-anchor");
+      const anchor = $(".why-anchor");
       if (anchor) {
-        anchor.style.setProperty("--p", anchorP);
-        anchor.style.setProperty("--s", anchorS);
+        setVar(anchor, "--p", anchorP);
+        setVar(anchor, "--s", anchorS);
       }
 
-      document.querySelectorAll(".why-chapter").forEach((c) => {
+      $$(".why-chapter").forEach((c) => {
         const id = c.dataset.chap;
         c.classList.toggle("active", id === activeChap);
       });
 
       // Buddhism / Hinduism line ticking
       const tickLines = (chap, range) => {
-        const c = document.querySelector(`.why-chapter[data-chap="${chap}"]`);
+        const c = $(`.why-chapter[data-chap="${chap}"]`);
         if (!c) return;
         const lines = c.querySelectorAll(".lines span");
         const [a, b] = range;
@@ -192,12 +242,12 @@
       tickLines("C", [0.6, 0.75]);
 
       // Project chapter — mandala radial reveal
-      const projC = document.querySelector('.why-chapter[data-chap="E"]');
+      const projC = $('.why-chapter[data-chap="E"]');
       if (projC) {
         const [a, b] = [0.78, 0.98];
         const local = clamp((p - a) / (b - a));
         const mandala = projC.querySelector(".why-mandala");
-        if (mandala) mandala.style.setProperty("--mandala-p", local);
+        if (mandala) setVar(mandala, "--mandala-p", local);
       }
     },
   });
@@ -209,7 +259,7 @@
     num: "06 / 15",
     act: "III — The Sacred Formation",
     update(p) {
-      const cells = document.querySelectorAll(".scene-multiply .cg-cell");
+      const cells = $$(".scene-multiply .cg-cell");
       // Define multiplication waves: 1 → 3 → 9 → 27 → 54 → 108
       // Mapping each step to a progress range
       const steps = [
@@ -242,11 +292,11 @@
     num: "07 / 15",
     act: "III — The Sacred Formation",
     update(p) {
-      const tr = document.querySelector(".scene-spacing .spacing-track");
-      const measure = document.querySelector(".scene-spacing .spacing-measure");
-      const total = document.querySelector(".scene-spacing .spacing-total");
-      const row = document.querySelector(".scene-spacing .spacing-row");
-      const chortens = row ? row.querySelectorAll(".chorten-mini") : [];
+      const tr = $(".scene-spacing .spacing-track");
+      const measure = $(".scene-spacing .spacing-measure");
+      const total = $(".scene-spacing .spacing-total");
+      const row = $(".scene-spacing .spacing-row");
+      const chortens = $$(".scene-spacing .spacing-row .chorten-mini");
       const N = chortens.length; // 108
 
       // Four phases:
@@ -264,7 +314,7 @@
       } else {
         trackP = 1.0; // second hold — fully zoomed out
       }
-      if (tr) tr.style.setProperty("--p", trackP);
+      if (tr) setVar(tr, "--p", trackP);
 
       const isMobile = window.innerWidth <= 768;
       const maxGapPx = ((isMobile ? 65 : 38) * window.innerWidth) / 100;
@@ -279,15 +329,19 @@
       }
       if (row) {
         const gapStr = gapPx.toFixed(1) + "px";
-        row.style.gap = gapStr;
-        // Apply same gap to every .pair child in one pass
-        row.querySelectorAll(".pair").forEach((pair) => {
-          pair.style.gap = gapStr;
-        });
+        // Skip the write (and the relayout of 108 slots) when the gap is unchanged.
+        if (row._gap !== gapStr) {
+          row._gap = gapStr;
+          row.style.gap = gapStr;
+          // Apply same gap to every .pair child in one pass
+          row.querySelectorAll(".pair").forEach((pair) => {
+            pair.style.gap = gapStr;
+          });
+        }
       }
 
       // Measure line width matches the gap
-      if (measure) measure.style.width = gapPx.toFixed(1) + "px";
+      if (measure) setVar(measure, "width", gapPx.toFixed(1) + "px");
 
       // Reveal chortens: only mutate DOM when revealRadius actually changes.
       let revealRadius;
@@ -306,7 +360,7 @@
           const dist = Math.abs(i - (N / 2 - 0.5));
           const visible = dist < revealRadius;
           // Use opacity directly — avoids CSS custom property resolution cost.
-          c.style.opacity = visible ? "1" : "0";
+          setVar(c, "opacity", visible ? "1" : "0");
         });
       }
 
@@ -314,15 +368,15 @@
       if (measure) {
         const fadeIn = clamp((p - 0.27) / 0.06);
         const fadeOut = 1 - clamp((p - 0.42) / 0.06);
-        measure.style.opacity = Math.min(fadeIn, fadeOut).toFixed(3);
-        measure.style.setProperty("--p", trackP);
+        setVar(measure, "opacity", Math.min(fadeIn, fadeOut).toFixed(3));
+        setVar(measure, "--p", trackP);
       }
 
       // ~11.7 km total line: fades in during second hold
       if (total) {
         const fadeIn = clamp((p - 0.78) / 0.08);
         const fadeOut = 1 - clamp((p - 0.96) / 0.04);
-        total.style.setProperty("--vis", Math.min(fadeIn, fadeOut));
+        setVar(total, "--vis", Math.min(fadeIn, fadeOut));
       }
     },
   });
@@ -336,12 +390,12 @@
     update(p) {
       // Phones: no pin, so show the end state.
       if (window.innerWidth <= 768) p = 1;
-      const photo = document.querySelector(".scene-river .river-photo");
-      const path = document.querySelector(".scene-river .river-path");
-      if (photo) photo.style.setProperty("--p", clamp((p - 0.05) / 0.3));
-      if (path) path.style.setProperty("--p", clamp((p - 0.15) / 0.55));
+      const photo = $(".scene-river .river-photo");
+      const path = $(".scene-river .river-path");
+      if (photo) setVar(photo, "--p", clamp((p - 0.05) / 0.3));
+      if (path) setVar(path, "--p", clamp((p - 0.15) / 0.55));
       // Markers light along path
-      const markers = document.querySelectorAll(".scene-river .river-marker");
+      const markers = $$(".scene-river .river-marker");
       const isMobile = window.innerWidth <= 768;
       const litCount = Math.floor(clamp((p - 0.35) / 0.55) * markers.length);
       markers.forEach((m, i) =>
@@ -361,10 +415,9 @@
     act: "IV — The Scale of the Offering",
     update(p) {
       if (window.innerWidth <= 768) p = 1;
-      const stageEl = document.querySelector(".scene-stack .sg-stage");
+      const stageEl = $(".scene-stack .sg-stage");
       if (!stageEl) return;
-      const stageH = stageEl.offsetHeight;
-      const stageW = stageEl.offsetWidth;
+      const [stageW, stageH] = size(stageEl);
       const isMobile = stageW < 600;
 
       // Asset data — real height (m), image aspect ratio (w/h), phase start/end
@@ -427,17 +480,19 @@
       const RULER_P = clamp((p - 0.63) / 0.19);
 
       // Tally — label of the last asset whose phase has started
-      const labelEl = document.querySelector(".scene-stack .sg-phase-label");
-      const heightEl = document.querySelector(".scene-stack .sg-phase-h");
+      const labelEl = $(".scene-stack .sg-phase-label");
+      const heightEl = $(".scene-stack .sg-phase-h");
       if (labelEl && heightEl) {
         let active = ASSETS[0];
         for (const a of ASSETS) {
           if (p >= a.start) active = a;
         }
-        labelEl.textContent = active.label;
+        setText(labelEl, active.label);
         const m = active.meters;
-        heightEl.textContent =
-          m >= 1000 ? (m / 1000).toFixed(2) + " km" : m + " m";
+        setText(
+          heightEl,
+          m >= 1000 ? (m / 1000).toFixed(2) + " km" : m + " m",
+        );
       }
 
       // ── Container pan (keeps gaps uniform) ──────────────────────────────────
@@ -465,7 +520,7 @@
         });
       }
 
-      const assetsEl = document.querySelector(".scene-stack .sg-assets");
+      const assetsEl = $(".scene-stack .sg-assets");
       if (assetsEl) {
         // Pan timing — each asset pans during its own shrink phase.
         const panFrac = Math.min(
@@ -480,11 +535,14 @@
         // Switch to block + fixed width so flex reflow can never happen.
         // Assets are absolutely positioned at their final X, so their large
         // entry size does not push siblings.
-        assetsEl.style.display = "block";
-        assetsEl.style.position = "relative";
-        assetsEl.style.width = finalContW.toFixed(1) + "px";
-        assetsEl.style.height =
-          (stageH * (isMobile ? 0.62 : 0.88)).toFixed(1) + "px";
+        setVar(assetsEl, "display", "block");
+        setVar(assetsEl, "position", "relative");
+        setVar(assetsEl, "width", finalContW.toFixed(1) + "px");
+        setVar(
+          assetsEl,
+          "height",
+          (stageH * (isMobile ? 0.62 : 0.88)).toFixed(1) + "px",
+        );
 
         let panX;
         if (isMobile) {
@@ -500,11 +558,11 @@
           const startX = (finalContW - firstW) / 2;
           panX = startX * (1 - panEase) + stageW * 0.06 * panEase;
         }
-        assetsEl.style.transform = `translateX(${panX.toFixed(1)}px)`;
+        setVar(assetsEl, "transform", `translateX(${panX.toFixed(1)}px)`);
       }
 
       ASSETS.forEach(({ id, aspect, start, end }) => {
-        const el = document.querySelector(
+        const el = $(
           `.scene-stack .sg-asset[data-id="${id}"]`,
         );
         if (!el) return;
@@ -520,8 +578,10 @@
         // was last set — avoids forced reflow on every frame.
         // Subsequent per-frame animation uses only transform + opacity
         // (GPU-composited, zero layout cost).
-        if (el._fp !== fp) {
-          el._fp = fp;
+        // fp is a new object every frame, so compare its numbers, not identity.
+        const fpKey = `${fp.x.toFixed(1)},${fp.w.toFixed(2)},${fp.h.toFixed(2)}`;
+        if (el._fp !== fpKey) {
+          el._fp = fpKey;
           el.style.position = "absolute";
           el.style.bottom = "0";
           el.style.left = fp.x.toFixed(1) + "px";
@@ -530,11 +590,11 @@
           el.style.transformOrigin = "bottom center";
           el.style.willChange = "transform, opacity";
         }
-        el.style.display = "";
+        setVar(el, "display", "");
 
         if (p < start) {
-          el.style.opacity = "0";
-          el.style.transform = `scale(${s0.toFixed(4)})`;
+          setVar(el, "opacity", "0");
+          setVar(el, "transform", `scale(${s0.toFixed(4)})`);
           return;
         }
 
@@ -542,13 +602,13 @@
         const ease = 1 - Math.pow(1 - raw, 3);
         const s = s0 + (1 - s0) * ease;
 
-        el.style.transform = `scale(${s.toFixed(4)})`;
-        el.style.opacity = Math.min(1, raw / 0.1).toFixed(3);
+        setVar(el, "transform", `scale(${s.toFixed(4)})`);
+        setVar(el, "opacity", Math.min(1, raw / 0.1).toFixed(3));
 
         const ruler = el.querySelector(".sg-ruler");
-        if (ruler) ruler.style.opacity = RULER_P.toFixed(3);
+        if (ruler) setVar(ruler, "opacity", RULER_P.toFixed(3));
         const name = el.querySelector(".sg-asset__name");
-        if (name) name.style.opacity = RULER_P.toFixed(3);
+        if (name) setVar(name, "opacity", RULER_P.toFixed(3));
       });
     },
   });
@@ -562,13 +622,13 @@
     update(p) {
       // Phones: no pin, so show the end state.
       if (window.innerWidth <= 768) p = 1;
-      const fill = document.querySelector(".scene-time .time-fill");
-      if (fill) fill.style.setProperty("--p", clamp(p * 1.1));
-      const markers = document.querySelectorAll(".scene-time .time-marker");
+      const fill = $(".scene-time .time-fill");
+      if (fill) setVar(fill, "--p", clamp(p * 1.1));
+      const markers = $$(".scene-time .time-marker");
       markers.forEach((el, i) => {
         const at = parseFloat(el.dataset.at) || i / markers.length;
         const t = clamp((p - at + 0.04) / 0.12);
-        el.style.setProperty("--p", t);
+        setVar(el, "--p", t);
         el.classList.toggle("lit", t > 0.9);
       });
     },
@@ -581,12 +641,12 @@
     num: "11 / 15",
     act: "V — The Human Achievement",
     update(p) {
-      if (document.querySelector(".scene-manpower.is-unpinned")) p = 1;
-      const rows = document.querySelectorAll(".scene-manpower .manpower-row");
+      if ($(".scene-manpower.is-unpinned")) p = 1;
+      const rows = $$(".scene-manpower .manpower-row");
       rows.forEach((el, i) => {
         const start = i * 0.14;
         const t = clamp((p - start) / 0.25);
-        el.style.setProperty("--p", t);
+        setVar(el, "--p", t);
       });
     },
   });
@@ -599,7 +659,7 @@
     act: "V — The Human Achievement",
     update(p) {
       if (window.innerWidth <= 768) p = 1;
-      const canvas = document.querySelector(".scene-volunteers .vol-canvas");
+      const canvas = $(".scene-volunteers .vol-canvas");
       if (!canvas) return;
 
       const TARGET = 40000;
@@ -613,11 +673,13 @@
       const handsToShow = count >= TARGET ? poolSize : Math.floor(t * poolSize);
 
       // Counter
-      const counterNum = document.querySelector(".vol-counter .num");
-      const denomEl = document.querySelector(".vol-counter .denom");
-      if (counterNum) counterNum.textContent = count.toLocaleString();
-      if (denomEl)
+      const counterNum = $(".vol-counter .num");
+      const denomEl = $(".vol-counter .denom");
+      if (counterNum) setText(counterNum, count.toLocaleString());
+      if (denomEl && !denomEl._set) {
+        denomEl._set = true;
         denomEl.innerHTML = `volunteers · <strong>40,000</strong> across <strong>108</strong> sites`;
+      }
 
       // Init: size canvas, load SVG image, pre-compute positions
       if (!canvas._volInit || canvas._volInit !== 17) {
@@ -769,6 +831,8 @@
         const img = new Image();
         img.onload = () => {
           canvas._img = img;
+          // The hands arrive after this frame: draw them on the next one.
+          invalidate();
         };
         img.src = "/assets/2Hand.svg";
       }
@@ -822,19 +886,19 @@
     num: "13 / 15",
     act: "VI — The Invitation",
     update(p) {
-      const light = document.querySelector(".scene-completion .compl-light");
-      const track = document.querySelector(".scene-completion .compl-track");
-      const copy = document.querySelector(".scene-completion .compl-copy");
-      if (light) light.style.setProperty("--p", clamp(p));
+      const light = $(".scene-completion .compl-light");
+      const track = $(".scene-completion .compl-track");
+      const copy = $(".scene-completion .compl-copy");
+      if (light) setVar(light, "--p", clamp(p));
       // Light each chorten as the wave passes
-      const chortens = document.querySelectorAll(".compl-chorten");
+      const chortens = $$(".compl-chorten");
       const perRow = 36;
       const litCols = Math.floor(clamp(p * 1.05) * perRow);
       chortens.forEach((c) => {
         const col = parseInt(c.dataset.index) % perRow;
         c.classList.toggle("lit", col < litCols);
       });
-      if (copy) copy.style.setProperty("--p", clamp((p - 0.15) / 0.2));
+      if (copy) setVar(copy, "--p", clamp((p - 0.15) / 0.2));
     },
   });
 
@@ -847,13 +911,13 @@
     act: "VI — The Invitation",
     update(p) {
       if (window.innerWidth <= 760 || reducedMotion) p = 1;
-      const steps = document.querySelectorAll(".scene-108bt .bt-step");
+      const steps = $$(".scene-108bt .bt-step");
       // 4 places, 4 dates, button
       const at = [0.08, 0.16, 0.24, 0.32, 0.46, 0.54, 0.62, 0.7, 0.8];
       steps.forEach((el, i) => el.classList.toggle("show", p > (at[i] ?? 0.8)));
-      const dates = document.querySelector(".scene-108bt .bt-dates");
+      const dates = $(".scene-108bt .bt-dates");
       if (dates)
-        dates.style.setProperty("--line", easeOut(clamp((p - 0.42) / 0.3)));
+        setVar(dates, "--line", easeOut(clamp((p - 0.42) / 0.3)));
     },
   });
 
@@ -864,8 +928,8 @@
     num: "14 / 15",
     act: "VI — The Invitation",
     update(p) {
-      const block = document.querySelector(".scene-gesture .gesture-block");
-      if (block) block.style.setProperty("--p", clamp(p));
+      const block = $(".scene-gesture .gesture-block");
+      if (block) setVar(block, "--p", clamp(p));
     },
   });
 
@@ -879,7 +943,7 @@
     // Phones and reduced motion show it whole.
     update(p) {
       if (window.innerWidth <= 768 || reducedMotion) p = 1;
-      const steps = document.querySelectorAll(
+      const steps = $$(
         ".scene-invitation .inv-lede, .scene-invitation .inv-card, .scene-invitation .inv-meta",
       );
       steps.forEach((el, i) =>
@@ -892,7 +956,7 @@
   // Build cells in DOM and compute centre-out order so the wave
   // looks like petals opening from the middle.
   function buildMultiplyGrid() {
-    const grid = document.querySelector(".scene-multiply .chorten-grid");
+    const grid = $(".scene-multiply .chorten-grid");
     if (!grid) return;
     const cols = 18,
       rows = 6; // 108 cells
@@ -932,7 +996,7 @@
 
   /* ---------------- Spacing track setup ---------------- */
   function buildSpacingTrack() {
-    const track = document.querySelector(".scene-spacing .spacing-row");
+    const track = $(".scene-spacing .spacing-row");
     if (!track) return;
     // Render all 108 chortens; CSS zooms out to reveal the full procession
     const html = [];
@@ -944,7 +1008,7 @@
 
   /* ---------------- River SVG path setup ---------------- */
   function buildRiverPath() {
-    const svg = document.querySelector(".scene-river .river-svg");
+    const svg = $(".scene-river .river-svg");
     if (!svg) return;
     const w = 1200,
       h = 700;
@@ -973,7 +1037,7 @@
     svg.appendChild(path);
     const len = path.getTotalLength();
     path.setAttribute("stroke-dasharray", len);
-    path.style.setProperty("--len", len);
+    setVar(path, "--len", len);
     const styleNode = document.createElement("style");
     styleNode.textContent = `.scene-river .river-path{stroke-dasharray:${len};stroke-dashoffset:calc(${isMobile ? "" : "-"}${len} * (1 - var(--p,0)))}`;
     document.head.appendChild(styleNode);
@@ -997,7 +1061,7 @@
 
   /* ---------------- Stack column setup ---------------- */
   function buildStackColumn() {
-    const col = document.querySelector(".scene-stack .stack-column");
+    const col = $(".scene-stack .stack-column");
     if (!col) return;
     const N = 108;
     const html = [];
@@ -1006,7 +1070,7 @@
     }
     col.innerHTML = html.join("");
     // Stars
-    const stars = document.querySelector(".stack-stars");
+    const stars = $(".stack-stars");
     if (stars) {
       const s = [];
       for (let i = 0; i < 60; i++) {
@@ -1023,7 +1087,7 @@
 
   /* ---------------- Volunteers SVG setup ---------------- */
   function buildVolunteersSVG() {
-    const svg = document.querySelector(".scene-volunteers .vol-svg");
+    const svg = $(".scene-volunteers .vol-svg");
     if (!svg) return;
     const w = 1200,
       h = 700;
@@ -1071,7 +1135,7 @@
 
   /* ---------------- Completion track setup ---------------- */
   function buildCompletionTrack() {
-    const track = document.querySelector(".scene-completion .compl-track");
+    const track = $(".scene-completion .compl-track");
     if (!track) return;
     const rows = 3;
     const perRow = 36; // 3 × 36 = 108
@@ -1091,32 +1155,44 @@
     // No-op: mandala is now a single static image (why-mandala)
   }
 
-  /* ---------------- Stable viewport height ---------------- */
-  // Chrome mobile changes window.innerHeight when its address bar shows/hides,
-  // causing scroll progress to jump. We lock vh at the smallest observed value
-  // and only update on an actual orientation/resize event after a debounce.
-  let stableVH = window.innerHeight;
-  let resizeTimer = null;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      stableVH = window.innerHeight;
-      fitManpower();
-      cacheSceneRects();
-    }, 200);
-  });
-
-  /* ---------------- Visible screen height (phones) ---------------- */
-  // Some iPhone browsers (Brave) report vh/lvh that don't match what they
-  // actually show, so on phones the CSS sizes stages from this measured height.
+  /* ---------------- Stable screen height ----------------
+     A phone's address bar slides away and back as the page scrolls, and
+     window.innerHeight (and a resize event) follows it. Re-measuring then
+     resized every pinned stage mid-scroll and made progress jump. So on
+     touch screens the height is taken once and again only when the width
+     changes (a rotation); elsewhere (a desktop window) on every resize.
+     --app-h stays measured rather than svh: some iPhone browsers (Brave)
+     report vh/svh that don't match what they actually show.
+  -------------------------------------------------------- */
   const root = document.documentElement;
+  let stableVH = window.innerHeight;
+  let measuredWidth = window.innerWidth;
+
   function setAppHeight() {
-    const h = window.innerHeight;
-    root.style.setProperty("--app-h", h + "px");
-    root.style.setProperty("--app-vh", h / 100 + "px");
+    stableVH = window.innerHeight;
+    setVar(root, "--app-h", stableVH + "px");
+    setVar(root, "--app-vh", stableVH / 100 + "px");
   }
   setAppHeight();
-  window.addEventListener("resize", setAppHeight);
+
+  let resizeTimer = null;
+  window.addEventListener(
+    "resize",
+    () => {
+      // Address-bar slides on a phone: same width, ignore.
+      if (touch && window.innerWidth === measuredWidth) return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        measuredWidth = window.innerWidth;
+        setAppHeight();
+        sizes = new WeakMap();
+        fitManpower();
+        cacheSceneRects();
+        invalidate();
+      }, 150);
+    },
+    { passive: true },
+  );
 
   // Workforce pins on phones only when it fits the screen; otherwise it
   // scrolls as a plain section with its bars filled, so nothing is cut off.
@@ -1125,80 +1201,122 @@
   function fitManpower() {
     if (window.innerWidth === fitWidth) return;
     fitWidth = window.innerWidth;
-    const sec = document.querySelector(".scene-manpower");
+    const sec = $(".scene-manpower");
     const inner = sec && sec.querySelector(".stage__inner");
     if (!inner) return;
     sec.classList.toggle(
       "is-unpinned",
-      window.innerWidth <= 768 && inner.offsetHeight > window.innerHeight,
+      window.innerWidth <= 768 && inner.offsetHeight > stableVH,
     );
   }
 
   /* ---------------- Scene rect cache ----------------
-     getBoundingClientRect() forces a layout recalculation.
-     Calling it on all 15 scenes every rAF frame (~60/s) is the
-     primary cause of jitter on mobile — it can halve the frame rate.
-     Instead we cache offsetTop + offsetHeight once, invalidate on resize,
-     and compute p purely from scrollY arithmetic (zero layout cost).
+     Section positions and the page height are measured once, then again
+     on resize or when the page's height changes (fonts, images, React).
+     The frame loop works from these numbers alone, so it never asks the
+     browser to lay the page out.
   ---------------------------------------------------- */
   let sceneCache = []; // [{top, height}]
+  let docH = 1;
 
   function cacheSceneRects() {
     sceneCache = sceneDefs.map((s) => ({
       top: s.el.offsetTop,
       height: s.el.offsetHeight,
     }));
+    docH = Math.max(1, root.scrollHeight - stableVH);
+    wake();
   }
 
-  /* ---------------- Main scroll loop ---------------- */
+  /* ---------------- Main scroll loop ----------------
+     Runs only while something is moving: a scroll event wakes it, and it
+     goes back to sleep once the page is still and every scene has caught
+     up. Scenes more than a screen away are skipped, and a scene whose
+     progress hasn't changed isn't touched at all.
+  ---------------------------------------------------- */
   const smoothP = {};
+  const lastP = {};
+  // Desktop eases progress after the wheel; touch screens and reduced
+  // motion follow the scroll exactly. Where Lenis eases the wheel itself
+  // (components/SmoothScroll.tsx) the scroll is already smooth, so progress
+  // follows it exactly too, rather than being smoothed twice.
+  const BASE_LERP = touch || reducedMotion ? 1 : 0.14;
 
+  let floatBtn = null;
+  let lastY = -1;
+
+  /** Forget what every scene last drew, so each redraws on the next frame. */
+  function invalidate() {
+    for (const k in lastP) delete lastP[k];
+    lastY = -1;
+    wake();
+  }
+
+  /** One frame. Returns true while anything is still moving. */
   function tick() {
     const scrollY = window.scrollY || window.pageYOffset;
-    const docH = document.documentElement.scrollHeight - stableVH;
-    if (railFill) railFill.style.width = clamp(scrollY / docH) * 100 + "%";
+    const moved = scrollY !== lastY;
+    lastY = scrollY;
+    let settling = false;
 
-    if (scrollY > 50) document.body.classList.add("scrolled");
-    else document.body.classList.remove("scrolled");
-
-    const floatBtn = document.getElementById("float-top-btn");
-    if (floatBtn) {
-      floatBtn.classList.toggle("visible", scrollY > stableVH * 0.8);
+    if (moved) {
+      if (railFill)
+        setVar(railFill, "transform", `scaleX(${clamp(scrollY / docH).toFixed(4)})`);
+      document.body.classList.toggle("scrolled", scrollY > 50);
+      if (!floatBtn || !floatBtn.isConnected)
+        floatBtn = document.getElementById("float-top-btn");
+      if (floatBtn) floatBtn.classList.toggle("visible", scrollY > stableVH * 0.8);
     }
 
-    // Lerp: smoothed p chases rawP each frame — absorbs momentum-scroll jumps.
-    // When reduced-motion is active, skip smoothing (instant snap).
-    const LERP = 0.14;
-
     let activeIdx = 0;
+    const mid = stableVH * 0.5;
     sceneDefs.forEach((s, i) => {
       const cache = sceneCache[i];
       if (!cache) return;
 
-      // p from pure arithmetic — NO getBoundingClientRect, NO layout cost.
-      const travelled = scrollY - cache.top;
-      const travel = Math.max(1, cache.height - stableVH);
-      const rawP = clamp(travelled / travel);
-
-      if (smoothP[i] === undefined) smoothP[i] = rawP;
-      smoothP[i] += (rawP - smoothP[i]) * LERP;
-      if (Math.abs(smoothP[i] - rawP) < 0.0005) smoothP[i] = rawP;
-
-      s.update(smoothP[i]);
-
-      // Active scene detection — using cached values avoids getBCR entirely.
       const sceneTop = cache.top - scrollY; // relative to viewport
       const sceneBottom = sceneTop + cache.height;
-      const mid = stableVH * 0.5;
       if (sceneTop <= mid && sceneBottom > mid) activeIdx = i;
+      s.el.classList.toggle("is-past", sceneBottom < mid);
 
-      const isPast = sceneBottom < mid;
-      s.el.classList.toggle("is-past", isPast);
+      // p from pure arithmetic — no layout reads.
+      const travel = Math.max(1, cache.height - stableVH);
+      const rawP = clamp(-sceneTop / travel);
+
+      // Off screen (with a screen's margin): nothing to draw. Snap its
+      // progress so it doesn't animate from a stale value when it returns.
+      const near = sceneTop < stableVH * 1.5 && sceneBottom > -stableVH * 0.5;
+      if (!near) {
+        smoothP[i] = rawP;
+        return;
+      }
+
+      let p = smoothP[i] === undefined ? rawP : smoothP[i];
+      p += (rawP - p) * (window.__lenis ? 1 : BASE_LERP);
+      if (Math.abs(p - rawP) < 0.0005) p = rawP;
+      else settling = true;
+      smoothP[i] = p;
+
+      if (lastP[i] === p) return;
+      lastP[i] = p;
+      s.update(p);
     });
     setActiveScene(activeIdx);
 
-    requestAnimationFrame(tick);
+    return moved || settling;
   }
+
+  let running = false;
+  function frame() {
+    running = false;
+    if (tick()) wake();
+  }
+  function wake() {
+    if (running) return;
+    running = true;
+    requestAnimationFrame(frame);
+  }
+  window.addEventListener("scroll", wake, { passive: true });
 
   /* ---------------- Init ---------------- */
   function init() {
@@ -1215,32 +1333,29 @@
     buildWhyDots();
 
     fitManpower();
-
-    // Cache scene positions once — tick loop reads these instead of calling
-    // getBoundingClientRect() every frame (which forces layout on mobile).
     cacheSceneRects();
 
-    // When reduced-motion is preferred, still run the scroll loop so
-    // content reveals as the user scrolls — but skip the lerp smoothing
-    // so transitions are instant (no swooping/sliding). This keeps the
-    // site usable for accessibility users instead of showing a static wall.
-    requestAnimationFrame(tick);
+    // The page's height changes after load (fonts, images, React mounting a
+    // section): re-measure then, at most once a frame.
+    if (window.ResizeObserver) {
+      let pending = false;
+      new ResizeObserver(() => {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+          pending = false;
+          cacheSceneRects();
+        });
+      }).observe(document.body);
+    }
+
+    invalidate();
   }
 
   // Expose tick for screenshot harnesses where rAF is paused (document.hidden).
   window.__p108Tick = tick;
 
-  let rafId = null;
   let inited = false;
-
-  function startTick() {
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
-    requestAnimationFrame(function loop() {
-      tick();
-      // tick() already calls rAF internally — this wrapper is just for restart
-    });
-  }
 
   function doInit() {
     if (inited) {
@@ -1283,7 +1398,10 @@
   window.addEventListener("pageshow", function (e) {
     if (e.persisted) {
       // Page restored from bfcache — measurements may be stale
-      setTimeout(cacheSceneRects, 80);
+      setTimeout(() => {
+        cacheSceneRects();
+        invalidate();
+      }, 80);
     }
   });
 })();
