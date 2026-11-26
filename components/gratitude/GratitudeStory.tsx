@@ -246,7 +246,25 @@ export default function GratitudeStory({ contributors }: { contributors: Contrib
         loop(performance.now());
       };
     }
+    /* At rest (nothing scrolled, pointed at or pressed for ten seconds) the
+       scene is drawn thirty times a second, not every frame: it looks the
+       same, the breeze and the fireflies a little less smooth, and the
+       device cools. As 108.bt's meadow rests. */
+    const REST_MS = 10000;
+    let lastInput = performance.now();
+    let lastDrawn = 0;
+    const woke = () => {
+      lastInput = performance.now();
+    };
+    const INPUTS = ["scroll", "wheel", "pointermove", "pointerdown", "touchstart", "keydown"] as const;
+    for (const k of INPUTS) window.addEventListener(k, woke, { passive: true });
     const loop = (now: number) => {
+      const resting = !filming && now - lastInput > REST_MS;
+      if (resting && now - lastDrawn < 1000 / 30 - 4) {
+        raf = requestAnimationFrame(loop);
+        return;
+      }
+      lastDrawn = now;
       const dt = filming ? filming.dt : Math.min(0.05, (now - prev) / 1000);
       prev = now;
       if (!reduce) time += dt;
@@ -308,6 +326,7 @@ export default function GratitudeStory({ contributors }: { contributors: Contrib
           time,
           dt: reduce ? 0 : dt,
           hold: exploringRef.current && selectedRef.current > 0,
+          resting,
         });
       }
       if (!filming) raf = requestAnimationFrame(loop);
@@ -394,6 +413,7 @@ export default function GratitudeStory({ contributors }: { contributors: Contrib
       disposed = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      for (const k of INPUTS) window.removeEventListener(k, woke);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("hashchange", fromHash);
       canvas.removeEventListener("pointerdown", onDown);

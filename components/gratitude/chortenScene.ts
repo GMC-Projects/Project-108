@@ -44,6 +44,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
+import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 import { PROFILE, STUPA_ASPECT } from "./valley/chorten-profile";
 import { ATTRIBUTION, FEET, bedEdge, groundAt } from "./valley/site";
 import { stoneWest } from "./valley/river";
@@ -69,6 +70,7 @@ export type SceneState = {
   time: number; // seconds, frozen under reduced motion
   dt: number;
   hold: boolean; // stop turning, e.g. while a chosen light faces the reader
+  resting?: boolean; // drawn at a slower rate, nothing having been touched for a while
 };
 
 export type ChortenScene = {
@@ -484,7 +486,8 @@ void main() {
   float slope = 1.0 - n.y;
 
   vec2 bakeUv = vec2((p.x - uBakeBox.x) / (uBakeBox.z - uBakeBox.x), (uBakeBox.w - p.y) / (uBakeBox.w - uBakeBox.y));
-  vec2 shade = texture2D(uGroundShade, bakeUv).rg;
+  vec3 shadeT = texture2D(uGroundShade, bakeUv).rgb;
+  vec2 shade = shadeT.rg;
 
   /* The land, painted as 108.bt's is: what each place is (meadow, damp
      ground, dirt, rock, moss on rock) from its slope, its wetness, its folds
@@ -500,10 +503,12 @@ void main() {
   // its bank, out from the stone into the grass; nothing outside uRiverBox.
   vec2 rUv = vec2((p.x - uRiverBox.x) / (uRiverBox.z - uRiverBox.x), (uRiverBox.w - p.y) / (uRiverBox.w - uRiverBox.y));
   float inBox = uRiverOn * step(0.0, rUv.x) * step(rUv.x, 1.0) * step(0.0, rUv.y) * step(rUv.y, 1.0);
-  vec3 rv = texture2D(uRiver, clamp(rUv, 0.0, 1.0)).rgb * inBox;
+  vec3 rv = vec3(0.0);
   // (The water's outline smoothed: the map read round the point, so its
-  // edge runs in a soft line, not along the map's pixels.)
-  {
+  // edge runs in a soft line, not along the map's pixels. Only inside its
+  // box: outside it all ten reads came to nothing, on every pixel.)
+  if (inBox > 0.5) {
+    rv = texture2D(uRiver, clamp(rUv, 0.0, 1.0)).rgb;
     vec2 du = vec2(1.6 / (uRiverBox.z - uRiverBox.x), 1.6 / (uRiverBox.w - uRiverBox.y));
     float w = rv.r * 2.0;
     w += texture2D(uRiver, clamp(rUv + vec2(du.x, 0.0), 0.0, 1.0)).r + texture2D(uRiver, clamp(rUv - vec2(du.x, 0.0), 0.0, 1.0)).r;
@@ -531,16 +536,28 @@ void main() {
   float far = smoothstep(25.0, 140.0, vDepth);
   vec2 ua = p * 0.16, ub = mat2(0.8, -0.6, 0.6, 0.8) * p * 0.031 + 0.37;
   vec4 g0 = mix(texture2D(uGrain0, ua), texture2D(uGrain0, ub), far * 0.7 + 0.15);
-  vec4 g1 = mix(texture2D(uGrain1, ua), texture2D(uGrain1, ub), far * 0.7 + 0.15);
+  // (Each read only where its material lies: on the meadow, most of the
+  // valley, they came to nothing. Weighed by zero, the same picture.)
   vec3 tw = pow(abs(n), vec3(4.0));
   tw /= tw.x + tw.y + tw.z;
-  float rockSide = texture2D(uGrain0, vW.zy * 0.12).a * tw.x + texture2D(uGrain0, vW.xy * 0.12).a * tw.z + g0.a * tw.y;
-  float mossSide = texture2D(uGrain1, vW.zy * 0.12).r * tw.x + texture2D(uGrain1, vW.xy * 0.12).r * tw.z + g1.r * tw.y;
+  float rockSide = 0.0, mossSide = 0.0;
+  if (wRock > 0.0) rockSide = texture2D(uGrain0, vW.zy * 0.12).a * tw.x + texture2D(uGrain0, vW.xy * 0.12).a * tw.z + g0.a * tw.y;
+  if (wMoss > 0.0) {
+    vec4 g1 = mix(texture2D(uGrain1, ua), texture2D(uGrain1, ub), far * 0.7 + 0.15);
+    mossSide = texture2D(uGrain1, vW.zy * 0.12).r * tw.x + texture2D(uGrain1, vW.xy * 0.12).r * tw.z + g1.r * tw.y;
+  }
   float grainV = g0.r * wMeadow + g0.g * wDamp + g0.b * wDirt + rockSide * wRock + mossSide * wMoss - 0.5;
   vec4 n0 = mix(texture2D(uNor0, ua), texture2D(uNor0, ub), far * 0.7 + 0.15);
-  vec4 n1 = mix(texture2D(uNor1, ua), texture2D(uNor1, ub), far * 0.7 + 0.15);
-  vec4 n2 = mix(texture2D(uNor2, ua), texture2D(uNor2, ub), far * 0.7 + 0.15);
-  vec2 dn = (n0.rg * wMeadow + n0.ba * wDamp + n1.rg * wDirt + n1.ba * wRock + n2.rg * wMoss) * 2.0 - (wMeadow + wDamp + wDirt + wRock + wMoss);
+  vec2 dn = n0.rg * wMeadow + n0.ba * wDamp;
+  if (wDirt + wRock > 0.0) {
+    vec4 n1 = mix(texture2D(uNor1, ua), texture2D(uNor1, ub), far * 0.7 + 0.15);
+    dn += n1.rg * wDirt + n1.ba * wRock;
+  }
+  if (wMoss > 0.0) {
+    vec4 n2 = mix(texture2D(uNor2, ua), texture2D(uNor2, ub), far * 0.7 + 0.15);
+    dn += n2.rg * wMoss;
+  }
+  dn = dn * 2.0 - (wMeadow + wDamp + wDirt + wRock + wMoss);
   // (Laid flat over the ground from above: x along the world's x, y along
   // its z; strongest close by, where the moon's skim can find it.)
   vec3 nd = normalize(n + vec3(dn.x, 0.0, -dn.y) * mix(0.9, 0.35, far));
@@ -573,7 +590,7 @@ void main() {
   // the forest floor's, so a grove reads as one soft mass on the hill.
   // (Packed into the land's shade map, its blue: the land's shader is at
   // its sixteen textures.)
-  float cover = texture2D(uGroundShade, bakeUv).b;
+  float cover = shadeT.b;
   c = mix(c, c * vec3(0.5, 0.56, 0.52), cover);
   // Broad light and dark over the land, so from up here no hill and no
   // stretch of the floor is one tone: at three sizes, strongest far off,
@@ -602,25 +619,25 @@ void main() {
     c *= mix(1.0, 0.45 + dt * 1.1, nearG * 0.8);
     c *= 1.0 - 0.22 * nearG;
   }
-  // The wind over the meadow: its gusts (WIND's) rolling through the grass
-  // as soft lighter bands, the blades bent over and their paler sides to the
-  // light, the troughs between a shade darker; their fronts wavering, not
-  // ruled. (The meadow is painted, its own blades too fine to bend; only
-  // the close grass, made blade by blade, moves itself.)
-  if (uWind > 0.0 && vDepth < 200.0) {
+  // The wind over the meadow: broad, slow swells of a lighter green passing
+  // over the flat ground, the blades bent over and their paler sides to
+  // the light, as a breeze reads across a field from afar. (In narrow,
+  // patchy bands they stood still in any one frame as worm-shaped blotches,
+  // and on the far bank, seen across the river, fell under a pixel and
+  // were cut, so one bank had them and the other not; on the hills too.)
+  // The meadow is painted, its own blades too fine to bend; only the close
+  // grass, made blade by blade, moves itself.
+  if (uWind > 0.0 && vDepth < 260.0) {
     vec2 wd = normalize(vec2(0.2, 1.0));
-    float ph = dot(p, wd) * 2.8 - uTime * 1.3 + (vn(p * 0.35 + 4.0) - 0.5) * 5.0 + (vn(p * 1.3) - 0.5) * 1.6;
+    float ph = dot(p, wd) * 0.85 - uTime * 0.55 + (vn(p * 0.08 + 4.0) - 0.5) * 2.2;
     float g = 0.5 + 0.5 * sin(ph);
-    g *= g;
-    // (Broken into patches along their fronts, so they read as gusts, not
-    // furrows.)
-    g *= smoothstep(0.25, 0.65, vn(p * 0.5 - wd * uTime * 0.45 + 9.0));
-    // (None where a band is narrower than a few pixels: further off,
-    // several to a pixel, they fell into fine ruled stripes.)
+    g = g * g * (3.0 - 2.0 * g);
+    // (Waxing and waning along their length, broadly.)
+    g *= mix(0.45, 1.0, smoothstep(0.2, 0.8, vn(p * 0.06 - wd * uTime * 0.12 + 9.0)));
     float px = fwidth(ph);
-    float k = wMeadow * (1.0 - smoothstep(0.08, 0.25, slope)) * (1.0 - smoothstep(0.35, 0.9, px)) * smoothstep(1.5, 6.0, vDepth) * uWind;
-    c *= 1.0 + (g - 0.35) * 0.09 * k;
-    c = mix(c, c * vec3(1.04, 1.06, 0.98), g * 0.5 * k);
+    float k = wMeadow * (1.0 - smoothstep(0.03, 0.08, slope)) * (1.0 - smoothstep(0.5, 1.2, px)) * smoothstep(1.5, 6.0, vDepth) * uWind;
+    c *= 1.0 + (g - 0.4) * 0.04 * k;
+    c = mix(c, c * vec3(1.03, 1.05, 0.99), g * 0.22 * k);
   }
   vec2 chUv = vec2((p.x - uChBox.x) / (uChBox.z - uChBox.x), (uChBox.w - p.y) / (uChBox.w - uChBox.y));
   if (uChAmt > 0.0 && chUv.x > 0.0 && chUv.x < 1.0 && chUv.y > 0.0 && chUv.y < 1.0) c *= 1.0 - uChAmt * texture2D(uChShadow, chUv).r;
@@ -639,30 +656,6 @@ void main() {
   // each bank and a few slim islands lying with the current.
   // (Under the river box's own painting below, never seen but at its edges;
   // the gravel's colour, uGravelCol, so it costs no texture of its own.)
-  vec3 stones = tex2(uGravelCol, p, 0.11, m) * 0.4;
-  float wobble = (vn(vec2(p.x * 0.03, 1.7)) - 0.5) * 0.08;
-  float edge = min(vAcross, 1.0 - vAcross) + wobble;
-  float dry = 1.0 - smoothstep(0.04, 0.09, edge);
-  // Broad across and long in the flow, so they are simple lozenges, never forks.
-  float isle = vn(vec2(p.x * 0.007, vAcross * 3.0)) * 0.85 + vn(vec2(p.x * 0.02, vAcross * 6.0) + 3.0) * 0.15;
-  // No islands in the narrow reach below the gorge, where they would squeeze
-  // into slivers; they appear only once the bed has widened.
-  float wide = smoothstep(200.0, 260.0, p.x);
-  dry = max(dry, smoothstep(0.74, 0.78, isle) * smoothstep(0.18, 0.32, edge) * wide);
-  // Dark water holding the sky; fine ripples, long in the flow, carried
-  // downstream; a soft path of moonlight down its length.
-  float t = uTime;
-  float rip = vn(vec2(p.x * 0.35 - t * 1.2, p.y * 2.2)) * 0.6 + vn(vec2(p.x * 0.9 - t * 2.0, p.y * 4.5) + 7.0) * 0.4;
-  float streak = smoothstep(0.62, 0.8, rip) * (1.0 - smoothstep(150.0, 600.0, vDepth));
-  vec3 deep = mix(vec3(0.03, 0.05, 0.09), vec3(0.14, 0.24, 0.26), uDay);
-  vec3 water = mix(deep, uHaze, mix(0.35, 0.15, uDay));
-  water += mix(vec3(0.5, 0.56, 0.72), vec3(0.7, 0.78, 0.8), uDay) * streak * mix(0.22, 0.15, uDay);
-  float sheen = smoothstep(0.3, 0.7, vn(vec2(p.x * 0.02 - t * 0.2, p.y * 0.05)));
-  water += vec3(0.08, 0.1, 0.14) * sheen * (1.0 - uDay);
-  // The water's edge: a pale lip of wet stone.
-  float lip = smoothstep(0.0, 0.6, dry) * (1.0 - smoothstep(0.6, 1.0, dry));
-  vec3 bedCol = mix(water, stones, dry);
-  bedCol = mix(bedCol, stones * 1.15, lip * 0.4);
   // A ragged bank, not a ruled line: the edge wanders with noise at two
   // scales, grass creeps onto the gravel in tufts, and a darker band of
   // damp ground runs along it.
@@ -670,13 +663,41 @@ void main() {
   float bedM = smoothstep(0.2, 0.8, vBed + (edgeN - 0.5) * 0.7);
   float tufts = smoothstep(0.5, 0.72, vn(p * 0.09 + 11.0)) * (1.0 - smoothstep(0.6, 1.0, vBed));
   bedM *= 1.0 - tufts * 0.8;
-  // (The bed keeps its own light until the river is rebuilt.)
-  float night = 1.0 - smoothstep(0.0, 0.3, uDay);
-  bedCol = mix(bedCol, vec3(dot(bedCol, vec3(0.3, 0.59, 0.11))) * vec3(0.9, 0.97, 1.08), 0.2 * night);
-  float l = clamp(dot(n, rl) * 1.15 + 0.1, 0.0, 1.0) * mix(0.3, 1.0, shade.g);
-  vec3 key = mix(uMoonCol, vec3(dot(uMoonCol, vec3(0.333))), 0.55 * night) * mix(1.0, 1.15, night);
-  bedCol *= (uAmbient * mix(1.0, 1.3, night) + key * l) * mix(0.35, 1.0, smoothstep(0.45, 1.0, shade.r));
-  c = mix(land, bedCol, bedM);
+  // (The old bed's own painting only where it shows: under the river's box
+  // the river is painted over it, and over the meadow its mask is nought.)
+  if (bedM > 0.0 && inBox < 0.5) {
+    vec3 stones = tex2(uGravelCol, p, 0.11, m) * 0.4;
+    float wobble = (vn(vec2(p.x * 0.03, 1.7)) - 0.5) * 0.08;
+    float edge = min(vAcross, 1.0 - vAcross) + wobble;
+    float dry = 1.0 - smoothstep(0.04, 0.09, edge);
+    // Broad across and long in the flow, so they are simple lozenges, never forks.
+    float isle = vn(vec2(p.x * 0.007, vAcross * 3.0)) * 0.85 + vn(vec2(p.x * 0.02, vAcross * 6.0) + 3.0) * 0.15;
+    // No islands in the narrow reach below the gorge, where they would squeeze
+    // into slivers; they appear only once the bed has widened.
+    float wide = smoothstep(200.0, 260.0, p.x);
+    dry = max(dry, smoothstep(0.74, 0.78, isle) * smoothstep(0.18, 0.32, edge) * wide);
+    // Dark water holding the sky; fine ripples, long in the flow, carried
+    // downstream; a soft path of moonlight down its length.
+    float t = uTime;
+    float rip = vn(vec2(p.x * 0.35 - t * 1.2, p.y * 2.2)) * 0.6 + vn(vec2(p.x * 0.9 - t * 2.0, p.y * 4.5) + 7.0) * 0.4;
+    float streak = smoothstep(0.62, 0.8, rip) * (1.0 - smoothstep(150.0, 600.0, vDepth));
+    vec3 deep = mix(vec3(0.03, 0.05, 0.09), vec3(0.14, 0.24, 0.26), uDay);
+    vec3 water = mix(deep, uHaze, mix(0.35, 0.15, uDay));
+    water += mix(vec3(0.5, 0.56, 0.72), vec3(0.7, 0.78, 0.8), uDay) * streak * mix(0.22, 0.15, uDay);
+    float sheen = smoothstep(0.3, 0.7, vn(vec2(p.x * 0.02 - t * 0.2, p.y * 0.05)));
+    water += vec3(0.08, 0.1, 0.14) * sheen * (1.0 - uDay);
+    // The water's edge: a pale lip of wet stone.
+    float lip = smoothstep(0.0, 0.6, dry) * (1.0 - smoothstep(0.6, 1.0, dry));
+    vec3 bedCol = mix(water, stones, dry);
+    bedCol = mix(bedCol, stones * 1.15, lip * 0.4);
+    // (The bed keeps its own light until the river is rebuilt.)
+    float night = 1.0 - smoothstep(0.0, 0.3, uDay);
+    bedCol = mix(bedCol, vec3(dot(bedCol, vec3(0.3, 0.59, 0.11))) * vec3(0.9, 0.97, 1.08), 0.2 * night);
+    float l = clamp(dot(n, rl) * 1.15 + 0.1, 0.0, 1.0) * mix(0.3, 1.0, shade.g);
+    vec3 key = mix(uMoonCol, vec3(dot(uMoonCol, vec3(0.333))), 0.55 * night) * mix(1.0, 1.15, night);
+    bedCol *= (uAmbient * mix(1.0, 1.3, night) + key * l) * mix(0.35, 1.0, smoothstep(0.45, 1.0, shade.r));
+    c = mix(land, bedCol, bedM);
+  }
 
   /* The river, as bake_river.py draws it: winding down from the gorge,
      gravel bars on the inside of its bends and a strip of stone along its
@@ -684,6 +705,7 @@ void main() {
      the sky where it is seen at a low angle, rippled as it runs downstream
      (+x), with the moon's path glinting on it. */
   if (inBox > 0.5) {
+    vec3 stones = tex2(uGravelCol, p, 0.11, m) * 0.4;
     /* The stone: a river's shingle, dry and pale on the bars' crowns, darker
        and wet toward the water, in streaks laid down along the flow; sand
        between; and at its landward edge the grass growing out over it in
@@ -1028,17 +1050,20 @@ void main() {
   }
   // And round every gathering, a soft warmth on the ground from all their
   // lights together, going as the lights rise.
-  float warm = 0.0;
-  for (int i = 0; i < 8; i++) {
-    vec2 q = p - uGroups[i].xy;
-    float ct = cos(uGroupTurn[i]), sn = sin(uGroupTurn[i]);
-    q = vec2(ct * q.x + sn * q.y, -sn * q.x + ct * q.y);
-    warm += exp(-1.6 * (pow(q.x / uGroups[i].z, 2.0) + pow(q.y / uGroups[i].w, 2.0)));
+  float warmK = 0.035 * (1.0 - smoothstep(0.1, 0.45, uGatherT)) * (1.0 - smoothstep(0.1, 0.5, uDay));
+  if (warmK > 0.0) {
+    float warm = 0.0;
+    for (int i = 0; i < 8; i++) {
+      vec2 q = p - uGroups[i].xy;
+      float ct = cos(uGroupTurn[i]), sn = sin(uGroupTurn[i]);
+      q = vec2(ct * q.x + sn * q.y, -sn * q.x + ct * q.y);
+      warm += exp(-1.6 * (pow(q.x / uGroups[i].z, 2.0) + pow(q.y / uGroups[i].w, 2.0)));
+    }
+    // (Faint, and uneven at its edge, not a lit oval.)
+    float wob = 0.5 + 0.25 * sin(p.x * 0.9 + sin(p.y * 0.6)) + 0.25 * sin(p.y * 1.3 + p.x * 0.4);
+    warm *= mix(1.0, wob, smoothstep(0.85, 0.15, warm));
+    c += uOrbWarm * warmK * min(warm, 1.0);
   }
-  // (Faint, and uneven at its edge, not a lit oval.)
-  float wob = 0.5 + 0.25 * sin(p.x * 0.9 + sin(p.y * 0.6)) + 0.25 * sin(p.y * 1.3 + p.x * 0.4);
-  warm *= mix(1.0, wob, smoothstep(0.85, 0.15, warm));
-  c += uOrbWarm * 0.035 * min(warm, 1.0) * (1.0 - smoothstep(0.1, 0.45, uGatherT)) * (1.0 - smoothstep(0.1, 0.5, uDay));
   // Distance: the far land takes the sky's colour, cooled, as air does,
   // so the hills step back one behind another.
   c = mix(c, mistColour(uHaze), mist(vW, vDepth));
@@ -1210,8 +1235,11 @@ varying float vRidge;
 varying float vKind;
 varying vec3 vW;
 varying float vUp;
+varying float vFoot;
+varying float vAcross;
 void main() {
   vUp = uv.y;
+  vAcross = uv.x;
   vec3 toEye = cameraPosition - aPos;
   vec3 f = normalize(vec3(toEye.x, 0.0, toEye.z));
   vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
@@ -1220,6 +1248,8 @@ void main() {
   float w = aSize, h = aSize * aspect;
   // (A little into the ground, so it stands in it on a slope.)
   vec3 p = aPos + r * (uv.x - 0.5) * w + vec3(0.0, 1.0, 0.0) * (uv.y * h - 0.06 * h);
+  // (Its height over the ground, in units, for the grass at its foot.)
+  vFoot = uv.y * h - 0.06 * h;
   // (Its crown stirring in the breeze, its foot still.)
   vec2 sw = windOff(aPos.xz, uTime) * h * 0.05 * uv.y * uv.y;
   p.xz += sw;
@@ -1252,7 +1282,21 @@ varying float vRidge;
 varying float vKind;
 varying vec3 vW;
 varying float vUp;
+varying float vFoot;
+varying float vAcross;
 void main() {
+  /* The grass grown up round its foot: below a ragged line of blades the
+     card is cut away and the meadow shows, so the trunk stands in the turf,
+     not on it. (Cut off straight at the ground, every tree sat on the hill
+     like a sticker.) A few centimetres to half a metre, some blades taller. */
+  float bx = vAcross * 26.0 + vShade * 7.0;
+  float bi = floor(bx);
+  float bh = fract(sin(bi * 91.7 + vShade * 13.1) * 43758.5453);
+  float tip = 1.0 - abs(fract(bx) - 0.5) * 2.0;
+  // (Taller with distance, so it reads at every range: from far off a
+  // true half-metre is under a pixel and the cut line showed again.)
+  float grassH = (0.006 + 0.022 * bh * bh + vDepth * 0.0016 * (0.4 + 0.6 * bh)) * tip;
+  if (vFoot < grassH) discard;
   vec4 g = texture2D(uGrainMap, vUv);
   // A ragged edge, not a cut-out (the outline dithered); and none close to
   // the eye, where a card shows itself flat.
@@ -1290,57 +1334,6 @@ void main() {
   c = mix(c, mix(dayC, vec3(dot(dayC, vec3(0.3, 0.59, 0.11))), 0.3), dayK);
   c = mix(c, mistColour(uHaze), mist(vW, vDepth));
   c = mix(c, uHaze, smoothstep(600.0, 1800.0, vDepth) * 0.3);
-  c = mix(c, uHaze, smoothstep(uFogNear, uFogFar, vDepth));
-  gl_FragColor = vec4(mix(uNight, c, uShow), 1.0);
-}`;
-
-/* Close by, where the camera comes down (the crowd's close shot, the
-   chorten's site at the end): 108.bt's grass clumps (grass-patches.glb),
-   swaying a little, lit as the meadow is (TERRAIN_FRAG's ramp), thinning
-   out by 70 or so off, so far away no field of them reads as a stain. */
-const GRASS_VERT = /* glsl */ `
-${WIND}
-uniform float uTime, uSway, uTop;
-varying vec2 vUv;
-varying float vDepth;
-varying float vH;
-varying vec3 vW;
-void main() {
-  vUv = uv;
-  vH = clamp(position.y / uTop, 0.0, 1.0);
-  vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
-  vec2 root = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
-  w.xz += windOff(root, uTime) * uSway * vH * vH;
-  vW = w.xyz;
-  vec4 mv = viewMatrix * w;
-  vDepth = -mv.z;
-  gl_Position = projectionMatrix * mv;
-}`;
-
-const GRASS_FRAG = /* glsl */ `
-uniform vec3 uMoon, uHaze, uNight;
-uniform float uFogNear, uFogFar, uShow, uDay, uCut;
-uniform sampler2D uMap;
-varying vec2 vUv;
-varying float vDepth;
-varying float vH;
-varying vec3 vW;
-void main() {
-  vec4 t = texture2D(uMap, vUv);
-  if (t.a < uCut) discard;
-  float h = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-  if (h < smoothstep(40.0, 70.0, vDepth)) discard;
-  // Its own light and dark from its texture; its colour the meadow's ramp,
-  // lighter toward the tips, which catch the moon, dark at the root.
-  float lum = dot(pow(t.rgb, vec3(1.0 / 2.2)), vec3(0.3, 0.59, 0.11));
-  float L = clamp(0.2 + vH * 0.75 + (lum - 0.35) * 0.6, 0.0, 1.0);
-  vec3 c = mix(mix(vec3(0.05, 0.096, 0.04), vec3(0.078, 0.14, 0.058), smoothstep(0.0, 0.5, L)), vec3(0.13, 0.192, 0.105), smoothstep(0.5, 1.0, L));
-  // (The tips catch the moon: a cool sheen, so the blades stand off the
-  // ground they grow from.)
-  c += vec3(0.04, 0.06, 0.05) * smoothstep(0.6, 1.0, vH);
-  float dayK = smoothstep(0.0, 0.45, uDay);
-  vec3 dayC = c * vec3(1.75, 1.7, 1.5);
-  c = mix(c, mix(dayC, vec3(dot(dayC, vec3(0.3, 0.59, 0.11))), 0.3), dayK);
   c = mix(c, uHaze, smoothstep(uFogNear, uFogFar, vDepth));
   gl_FragColor = vec4(mix(uNight, c, uShow), 1.0);
 }`;
@@ -2202,6 +2195,17 @@ void main() {
   // Held in the mandala: a slow ripple of light out from its centre.
   float held = up * join * (1.0 - step(0.0001, e));
   vA *= 1.0 + held * 0.35 * sin(uTime * 1.3 - length(aMand) * 9.0);
+  // (Softer while held in it, and softer still toward its centre, where
+  // they lie thickest: added up there and spread by the bloom, the mandala
+  // shone as a glaring white sun.)
+  float heart = 1.0 - smoothstep(0.0, 0.45, length(aMand));
+  vA *= 1.0 - held * (0.3 + 0.62 * heart);
+  gl_PointSize *= 1.0 - held * 0.4 * heart;
+  // (And as the mandala drains, all of them funnel through its centre on
+  // the way to the river of light: there, thousands on one spot added up to
+  // a glaring white sun. Fainter close to it.)
+  float funnel = (1.0 - smoothstep(0.0, uMandR * 0.4, distance(p, uMandC))) * step(0.0001, e) * (1.0 - smoothstep(FL - 0.1, FL, e));
+  vA *= 1.0 - 0.85 * funnel;
   if (uLag > 0.0) {
     // (No trail behind the first: at its size it shows as a shaky double.)
     flying *= 1.0 - first;
@@ -2224,7 +2228,11 @@ void main() {
   vec3 col = mix(mix(uCol, mix(uCore, uCol * 1.25, 0.75 * vFar), core), uHotCol, vHot);
   // (Far off, still held, a deeper amber: added over the grass, its gold ran
   // to a lemon yellow and a gathering read as a patch of flowers, not lamps.)
-  col *= mix(vec3(1.0), vec3(1.08, 0.78, 0.5), 0.75 * vAmber * (1.0 - vHot));
+  // (Far off, still held, the brand's gold (#C8A663) in hue, richer and a
+  // little brighter, so they glow as lamps: in its own pale tone, over the
+  // grass, they went dull.)
+  vec3 brand = vec3(0.86, 0.64, 0.26);
+  col = mix(col, brand * 1.18 * dot(col, vec3(0.3, 0.5, 0.2)) / dot(brand, vec3(0.3, 0.5, 0.2)), 0.85 * vAmber * (1.0 - vHot));
   gl_FragColor = vec4(col, (halo * halo * 0.85 + core) * vA);
 }`;
 
@@ -2468,6 +2476,7 @@ export async function createChortenScene(
     gltf,
     figGltf,
     figFarGltf,
+    figDistantGltf,
     mandalaImg,
     detailTex,
     groundShade,
@@ -2488,10 +2497,12 @@ export async function createChortenScene(
   ] = await Promise.all([
     // (Draco-compressed: scripts/valley/README.md.)
     figLoader.loadAsync(valleyUrl),
-    // The seated figure in full, for those near the camera, and simplified
-    // (scripts/figure/build_figure_mpfb.py; Draco-compressed).
+    // The seated figure in full, for those near the camera, simplified, and
+    // simpler again for those further off (scripts/figure/build_figure_mpfb.py,
+    // decimate_figure.py; Draco-compressed).
     figLoader.loadAsync(valleyUrl.replace(/valley\.glb$/, "figure.glb")),
     figLoader.loadAsync(valleyUrl.replace(/valley\.glb$/, "figure-far.glb")),
+    figLoader.loadAsync(valleyUrl.replace(/valley\.glb$/, "figure-distant.glb")),
     // The home page's mandala ("Why 108"), whose lines the lights trace in the sky.
     loadImage(
       valleyUrl.replace(/gratitude\/valley\.glb$/, "assets/Mandala.webp"),
@@ -2549,9 +2560,24 @@ export async function createChortenScene(
     antialias: !small,
     alpha: false,
   });
-  // 1.5 at most: the finish (bloom, grade) runs over every pixel, twice over
-  // at 2, and the grain hides the difference.
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  // Sharpness as 108.bt has it: up to 1.75 on a desktop, 2 on a phone (1.5
+  // on a weak one), never past seven million pixels. QUALITY, below, takes a
+  // share of it on a device that cannot keep up, but never under 1.5 (1 on a
+  // weak phone): the page was drawn at 1.5 before QUALITY, and under it, at
+  // 108.bt's floor of the screen's own, ours went visibly soft (its bloom,
+  // lens and ground are finer-grained than theirs).
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const weak = (nav.deviceMemory ?? 8) <= 4 || (nav.hardwareConcurrency ?? 8) <= 4;
+  const sharpness = (q: number) => {
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const phone = w < 768;
+    const top = Math.min(dpr, phone ? (weak ? 1.5 : 2) : 1.75) * q;
+    const floor = Math.min(dpr, phone && weak ? 1 : 1.5);
+    return Math.max(floor, Math.min(top, Math.sqrt(7e6 / Math.max(1, w * h))));
+  };
+  renderer.setPixelRatio(sharpness(1));
   renderer.setClearColor(NIGHT, 1); // under the sky, only ever seen fading in
   const pr = renderer.getPixelRatio();
 
@@ -2631,13 +2657,82 @@ export async function createChortenScene(
   // (Its depth drawn without the meadow's close-range parts, the blades,
   // tussocks and dandelions: millions of triangles, drawn a second time for a
   // depth no different from the ground's they stand on.)
+  // The blur itself drawn at half size, and laid over the picture only where
+  // it is more than a pixel or two across: at full size its 41 reads a pixel
+  // cost more than the rest of the finish together, and what it draws there
+  // is soft by its nature, so half the pixels show no different. Where the
+  // lens is in focus the picture is the scene's own, at full size.
+  const bokehHalf = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const bu = bokeh.uniforms as Record<string, THREE.IUniform>;
+  const bokehMix = new FullScreenQuad(
+    new THREE.ShaderMaterial({
+      defines: { DEPTH_PACKING: 1, PERSPECTIVE_CAMERA: 1 },
+      uniforms: {
+        tColor: { value: null },
+        tBlur: { value: bokehHalf.texture },
+        tDepth: bu.tDepth,
+        focus: bu.focus,
+        aperture: bu.aperture,
+        maxblur: bu.maxblur,
+        nearClip: bu.nearClip,
+        farClip: bu.farClip,
+        uWidth: { value: 1 },
+      },
+      vertexShader: /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,
+      fragmentShader: /* glsl */ `
+#include <common>
+#include <packing>
+varying vec2 vUv;
+uniform sampler2D tColor, tBlur, tDepth;
+uniform float focus, aperture, maxblur, nearClip, farClip, uWidth;
+void main() {
+  float viewZ = perspectiveDepthToViewZ(unpackRGBAToDepth(texture2D(tDepth, vUv)), nearClip, farClip);
+  // (The blur's reach in pixels, as BokehShader's furthest read.)
+  float px = abs(clamp((focus + viewZ) * aperture, -maxblur, maxblur)) * 0.4 * uWidth;
+  vec3 sharp = texture2D(tColor, vUv).rgb;
+  gl_FragColor = vec4(mix(sharp, texture2D(tBlur, vUv).rgb, smoothstep(0.75, 2.0, px)), 1.0);
+}`,
+    }),
+  );
+  bokeh.render = (renderer, writeBuffer, readBuffer) => {
+    const shown = nearOnly.map((n) => n.mesh.visible);
+    for (const n of nearOnly) n.mesh.visible = false;
+    // (As BokehPass draws it: the depth, then the blur, here into the half.)
+    scene.overrideMaterial = bokeh.materialDepth;
+    const clear = renderer.getClearColor(new THREE.Color());
+    const clearA = renderer.getClearAlpha();
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setClearColor(0xffffff, 1);
+    renderer.setRenderTarget(bokeh.renderTargetDepth);
+    renderer.clear();
+    renderer.render(scene, camera);
+    scene.overrideMaterial = null;
+    nearOnly.forEach((n, i) => (n.mesh.visible = shown[i]));
+    bu.tColor.value = readBuffer.texture;
+    bu.nearClip.value = camera.near;
+    bu.farClip.value = camera.far;
+    renderer.setRenderTarget(bokehHalf);
+    renderer.clear();
+    bokeh.fsQuad.render(renderer);
+    (bokehMix.material as THREE.ShaderMaterial).uniforms.tColor.value = readBuffer.texture;
+    renderer.setRenderTarget(bokeh.renderToScreen ? null : writeBuffer);
+    renderer.clear();
+    bokehMix.render(renderer);
+    renderer.setClearColor(clear, clearA);
+    renderer.autoClear = autoClear;
+  };
   {
-    const drawBokeh = bokeh.render.bind(bokeh);
-    bokeh.render = (...args: Parameters<typeof drawBokeh>) => {
-      const shown = nearOnly.map((n) => n.mesh.visible);
-      for (const n of nearOnly) n.mesh.visible = false;
-      drawBokeh(...args);
-      nearOnly.forEach((n, i) => (n.mesh.visible = shown[i]));
+    const sizeBokeh = bokeh.setSize.bind(bokeh);
+    bokeh.setSize = (w: number, h: number) => {
+      sizeBokeh(w, h);
+      bokehHalf.setSize(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
+      (bokehMix.material as THREE.ShaderMaterial).uniforms.uWidth.value = w;
     };
   }
   composer.addPass(bokeh);
@@ -3515,6 +3610,7 @@ export async function createChortenScene(
   // (Kept, to clear those among the gatherings once they are laid out.)
   let plantAt: Float32Array | null = null;
   let plantSize: THREE.InstancedBufferAttribute | null = null;
+  let plantKind: Float32Array | null = null;
   {
     for (const t of [plantGrain, plantNormal]) {
       t.colorSpace = THREE.NoColorSpace;
@@ -3557,6 +3653,7 @@ export async function createChortenScene(
     plantSize = new THREE.InstancedBufferAttribute(size, 1);
     g.setAttribute("aSize", plantSize);
     g.setAttribute("aKind", new THREE.InstancedBufferAttribute(kind, 1));
+    plantKind = kind;
     g.setAttribute("aTurn", new THREE.InstancedBufferAttribute(turn, 1));
     g.setAttribute("aShade", new THREE.InstancedBufferAttribute(shadeA, 1));
     g.setAttribute("aRidge", new THREE.InstancedBufferAttribute(ridge, 1));
@@ -4085,6 +4182,7 @@ export async function createChortenScene(
   // turn, and some grey-haired.
   const figGeo = figureGeo(figGltf);
   const figGeoFar = figureGeo(figFarGltf);
+  const figGeoDistant = figureGeo(figDistantGltf);
   const orbLocal = figGltf.scene
     .getObjectByName("orb")!
     .getWorldPosition(new THREE.Vector3());
@@ -4296,15 +4394,8 @@ export async function createChortenScene(
   one.yaw = Math.PI + THREE.MathUtils.clamp(one.yaw - Math.PI, -0.2, 0.2);
   const oneOrb = handAt(one, new THREE.Vector3());
 
-  /* ── Close by: grass, flowers, fireflies ── (GRASS_*, FLECK_*) */
+  /* ── Close by: the fireflies ── (FLECK_*) */
   const flies = (() => {
-    const pick = (name: string) => {
-      let found: THREE.Mesh | null = null;
-      grassGltf.scene.getObjectByName(name)?.traverse((o) => {
-        if ((o as THREE.Mesh).isMesh && !found) found = o as THREE.Mesh;
-      });
-      return found as THREE.Mesh | null;
-    };
     const onLand = (x: number, z: number, bank: "west" | "east") =>
       bank === "west"
         ? z > bedEdge(x, "west") + 0.6
@@ -4313,10 +4404,6 @@ export async function createChortenScene(
       SITES.every(
         ([fx, , fz]) => Math.abs(x - fx) > 1.25 || Math.abs(z - fz) > 1.25,
       );
-    const q = new THREE.Quaternion();
-    const yAxis = new THREE.Vector3(0, 1, 0);
-    const at = new THREE.Vector3();
-    const sc = new THREE.Vector3();
     const where = (
       cx: number,
       cz: number,
@@ -4332,62 +4419,6 @@ export async function createChortenScene(
         if (onLand(x, z, bank) && clearOfFeet(x, z)) return { x, z, r };
       }
       return null;
-    };
-    const field = (
-      kinds: string[],
-      cx: number,
-      cz: number,
-      radius: number,
-      count: number,
-      height: number,
-      bank: "west" | "east",
-    ) => {
-      for (const kind of kinds) {
-        const src = pick(kind);
-        if (!src) continue;
-        const g = src.geometry as THREE.BufferGeometry;
-        g.computeBoundingBox();
-        const b = g.boundingBox!;
-        const s0 = height / (b.max.y - b.min.y);
-        const map = (src.material as THREE.MeshStandardMaterial).map ?? null;
-        if (map) map.anisotropy = 8;
-        const mat = new THREE.ShaderMaterial({
-          vertexShader: GRASS_VERT,
-          fragmentShader: GRASS_FRAG,
-          side: THREE.DoubleSide,
-          uniforms: {
-            ...night,
-            uMap: { value: map },
-            uDay: dayU,
-            uTime: shared.uTime,
-            uWind: windU,
-            uSway: { value: height * 0.35 },
-            uTop: { value: b.max.y },
-            uCut: { value: 0.5 },
-          },
-        });
-        materials.push(mat);
-        const n = Math.round(count / kinds.length);
-        const mesh = new THREE.InstancedMesh(g, mat, n);
-        let k = 0;
-        for (let i = 0; i < n; i++) {
-          const w = where(cx, cz, radius, bank);
-          if (!w) continue;
-          // Smaller toward the edge, so the field fades into the meadow.
-          const s1 =
-            s0 *
-            (0.7 + 0.6 * srnd()) *
-            Math.sqrt(Math.max(0, 1 - w.r / radius));
-          at.set(w.x, groundAt(w.x, w.z) - 0.01, w.z);
-          q.setFromAxisAngle(yAxis, srnd() * Math.PI * 2);
-          sc.set(s1, s1 * (0.8 + 0.5 * srnd()), s1);
-          mesh.setMatrixAt(k++, m4.compose(at, q, sc));
-        }
-        mesh.count = k;
-        mesh.frustumCulled = false;
-        scene.add(mesh);
-        geometries.push(g);
-      }
     };
     const flecks = (
       cx: number,
@@ -4410,11 +4441,8 @@ export async function createChortenScene(
         aSeed: [new Float32Array(sd), 1] as [Float32Array, number],
       };
     };
-    // (108.bt's clumps read as shards and boards here, not grass: the grass
-    // round the person the camera comes to is made below, BLADE_*. `field`
-    // laid them: field(["grass_near", "grass2_near"], one.x, one.z, 5, 2500,
-    // 0.05, "west").)
-    void field;
+    // (108.bt's grass clumps read as shards and boards here, not grass: the
+    // grass round the person the camera comes to is made below, BLADE_*.)
     // The fireflies: a few over the crowd's grass.
     const softU = { value: 1 };
     const flyU = () => ({
@@ -4789,6 +4817,17 @@ export async function createChortenScene(
     const yAxis = new THREE.Vector3(0, 1, 0);
     const at = new THREE.Vector3();
     const sc = new THREE.Vector3();
+    /* Each kind stood in patches, one mesh to a patch, each with its own
+       bounds: the camera's view takes in only some of them (the carpet lies
+       all round the close shot's eye, half of it behind), and those outside
+       it are not drawn at all. As one mesh, all of it was, always. (So 108.bt
+       draws its grass cards, in culled chunks.) Three by three over each
+       stand's spread: smaller, the site's broad tussocks came to thousands
+       of meshes, and the drawing of each cost more than culling saved. */
+    const CHUNKS = 3;
+    // (Shared corners: drawn from a list of separate triangles, every corner
+    // was worked out once for each triangle it belongs to.)
+    const indexed = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
     const stand = (
       geo: THREE.BufferGeometry,
       mat: THREE.Material,
@@ -4796,26 +4835,56 @@ export async function createChortenScene(
       size: (x: number, z: number) => number,
       rnd = brnd,
     ) => {
-      const mesh = new THREE.InstancedMesh(geo, mat, spots.length);
-      spots.forEach(([x, z], k) => {
+      if (!indexed.has(geo)) {
+        const g = geo.index ? geo : mergeVertices(geo);
+        if (g !== geo) geometries.push(g);
+        indexed.set(geo, g);
+      }
+      const shape = indexed.get(geo)!;
+      // (Every spot placed first, in order, so the dice fall as they did.)
+      const placed = spots.map(([x, z]) => {
         const s = size(x, z);
         at.set(x, groundAt(x, z) - bankSink(x, z) - 0.002, z);
         q.setFromAxisAngle(yAxis, rnd() * Math.PI * 2);
         sc.set(s, s * (0.8 + 0.4 * rnd()), s);
-        mesh.setMatrixAt(k, m4.compose(at, q, sc));
+        return m4.compose(at, q, sc).clone();
       });
-      mesh.frustumCulled = false;
-      scene.add(mesh);
-      // (Its middle and spread; drawn while the camera is within its spread
-      // and the distance it sinks by.)
+      const patches = new Map<string, number[]>();
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (const [x, z] of spots) {
+        x0 = Math.min(x0, x);
+        x1 = Math.max(x1, x);
+        z0 = Math.min(z0, z);
+        z1 = Math.max(z1, z);
+      }
+      const cw = (x1 - x0) / CHUNKS + 1e-6, cd = (z1 - z0) / CHUNKS + 1e-6;
+      spots.forEach(([x, z], k) => {
+        const key = `${Math.min(CHUNKS - 1, Math.floor((x - x0) / cw))},${Math.min(CHUNKS - 1, Math.floor((z - z0) / cd))}`;
+        const list = patches.get(key);
+        if (list) list.push(k);
+        else patches.set(key, [k]);
+      });
       const fadeAt = (mat as THREE.ShaderMaterial).uniforms?.uFade?.value as THREE.Vector2 | undefined;
-      if (fadeAt && spots.length) {
-        const c = new THREE.Vector3();
-        for (const [x, z] of spots) c.x += x / spots.length, c.z += z / spots.length;
-        let r = 0;
-        for (const [x, z] of spots) r = Math.max(r, Math.hypot(x - c.x, z - c.z));
-        c.y = groundAt(c.x, c.z);
-        nearOnly.push({ mesh, c, reach: r + fadeAt.y + 2 });
+      for (const list of patches.values()) {
+        const mesh = new THREE.InstancedMesh(shape, mat, list.length);
+        list.forEach((k, n) => mesh.setMatrixAt(n, placed[k]));
+        mesh.computeBoundingSphere();
+        // (A little over, for the breeze's sway and the pointer's push.)
+        mesh.boundingSphere!.radius += 0.5;
+        scene.add(mesh);
+        // (Its middle and spread; drawn while the camera is within its spread
+        // and the distance it sinks by.)
+        if (fadeAt) {
+          const c = new THREE.Vector3();
+          for (const k of list) {
+            c.x += spots[k][0] / list.length;
+            c.z += spots[k][1] / list.length;
+          }
+          let r = 0;
+          for (const k of list) r = Math.max(r, Math.hypot(spots[k][0] - c.x, spots[k][1] - c.z));
+          c.y = groundAt(c.x, c.z);
+          nearOnly.push({ mesh, c, reach: r + fadeAt.y + 2 });
+        }
       }
     };
     // (The ground under it, seen from a little over it, as the close shot
@@ -5534,10 +5603,13 @@ export async function createChortenScene(
   });
   materials.push(figMat);
   // In full within a few seats of the one the camera comes to, simplified
-  // beyond, where a face is a few pixels.
+  // beyond, where a face is a few pixels, and simpler again past MID_FIG,
+  // where a whole person is a few dozen: there the 5,000 triangles each of
+  // eight hundred people cost more than the rest of the close shots.
   const NEAR_FIG = small ? 0.9 : 1.4;
-  const isNear = (st: Seat) =>
-    Math.hypot(st.x - one.x, st.z - one.z) < NEAR_FIG;
+  const MID_FIG = 4;
+  const figDist = (st: Seat) => Math.hypot(st.x - one.x, st.z - one.z);
+  const isNear = (st: Seat) => figDist(st) < NEAR_FIG;
   const turnQ = new THREE.Quaternion();
   const personScale = new THREE.Vector3(PERSON, PERSON, PERSON);
   const seatOf = new Map(seats.map((st, j) => [st, j]));
@@ -5568,7 +5640,8 @@ export async function createChortenScene(
   );
   const groupsOf: [THREE.BufferGeometry, Seat[]][] = [
     [figGeo, peopleSeats.filter(isNear)],
-    [figGeoFar, peopleSeats.filter((st) => !isNear(st))],
+    [figGeoFar, peopleSeats.filter((st) => !isNear(st) && figDist(st) < MID_FIG)],
+    [figGeoDistant, peopleSeats.filter((st) => figDist(st) >= MID_FIG)],
   ];
   // (From far off, as from the valley's opening, the people are only a few
   // pixels: there their robes dull this gathering among the others, which
@@ -5998,7 +6071,8 @@ export async function createChortenScene(
     .clone()
     .addScaledVector(downRow, -7.5)
     .addScaledVector(landward, -3.6);
-  endEye.y = Math.max(foot.y + 4.2, groundAt(endEye.x, endEye.z) + 1.5);
+  // (Some sixty metres over the meadow, a little lower than at first.)
+  endEye.y = groundAt(endEye.x, endEye.z) + 3.3;
 
   const endAt = allFeet[Math.min(allFeet.length - 1, CHORTEN_SITE + 22)]
     .clone()
@@ -6016,6 +6090,142 @@ export async function createChortenScene(
       .multiplyScalar(Math.cos(0.3))
       .setY(Math.sin(0.3));
   }
+  /* The trees' and bushes' shadows by day: each a soft, tapering shape on
+     the ground cast away from the noon sun (noonSun), as long as its height
+     and the sun's low angle make it, laid over the ground's own slope (its
+     corners set on the land) so it neither floats nor sinks on a hillside.
+     (The trees are pictures turned to the eye, and cast none of their own;
+     at noon they stood on the meadow unanchored.) Made once; two triangles
+     each; faded in with the day. Those cleared from among the gatherings
+     (size 0) cast none. */
+  const treeShadowMat = new THREE.ShaderMaterial({
+    vertexShader: "attribute vec2 aUv; attribute float aW; varying vec2 vUv; varying float vW; void main() { vUv = aUv; vW = aW; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: `
+      uniform float uAmt;
+      varying vec2 vUv;
+      varying float vW;
+      void main() {
+        // (Across: -1..1; along: 0 at the foot, 1 at the crown's far end.)
+        float along = vUv.y;
+        // The crown's shadow, rounder and darker toward the far end, the
+        // trunk's a thin line from the foot.
+        float crown = 1.0 - smoothstep(0.55, 1.0, length(vec2(vUv.x, (along - 0.62) / 0.42)));
+        float trunk = (1.0 - smoothstep(0.06, 0.14, abs(vUv.x))) * smoothstep(0.0, 0.05, along) * (1.0 - smoothstep(0.3, 0.45, along));
+        float a = max(crown, trunk * 0.7) * uAmt * vW;
+        if (a < 0.004) discard;
+        gl_FragColor = vec4(0.0, 0.02, 0.0, a);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: { uAmt: { value: 0 } },
+  });
+  materials.push(treeShadowMat);
+  // (By night as well, fainter and softer, cast from the moonlight the
+  // land is shaded by (nightLight), so they agree with the hills' own shade.)
+  const treeNightMat = treeShadowMat.clone();
+  materials.push(treeNightMat);
+  const buildTreeShadows = (light: THREE.Vector3, mat: THREE.ShaderMaterial) => {
+    if (!plantAt || !plantSize || !plantKind) return null;
+    const aspect = [1.044, 0.81, 1.062, 0.64];
+    const sun = light.clone();
+    const dir = new THREE.Vector2(-sun.x, -sun.z).normalize();
+    const side = new THREE.Vector2(-dir.y, dir.x);
+    const slope = sun.y / Math.hypot(sun.x, sun.z); // rise over run
+    const pos: number[] = [], uv: number[] = [], w: number[] = [], idx: number[] = [];
+    const sizes = plantSize.array as Float32Array;
+    for (let i = 0, n = 0; i < sizes.length; i++) {
+      const sz = sizes[i];
+      if (sz <= 0) continue;
+      const x = plantAt[i * 3], z = plantAt[i * 3 + 2];
+      const h = sz * aspect[Math.round(plantKind[i])] ;
+      const len = Math.min(h / slope, h * 2.6);
+      const half = sz * 0.42;
+      // (In short lengths, each set on the land, so over a rounded hill it
+      // bends with the ground: one flat piece cut straight across it.)
+      const SEG = 6;
+      const b = n * (SEG + 1) * 2;
+      for (let k = 0; k <= SEG; k++) {
+        const v = k / SEG;
+        const wAt = half * (0.35 + 0.65 * Math.min(1, v / 0.6));
+        for (const sgn of [-1, 1]) {
+          const cx = x + side.x * sgn * wAt + dir.x * len * v,
+            cz = z + side.y * sgn * wAt + dir.y * len * v;
+          pos.push(cx, groundAt(cx, cz) + 0.006, cz);
+          uv.push(sgn, v);
+          w.push(Math.round(plantKind[i]) === 3 ? 0.6 : 1);
+        }
+        if (k < SEG) {
+          const a = b + k * 2;
+          idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+      }
+      n++;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("aUv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setAttribute("aW", new THREE.Float32BufferAttribute(w, 1));
+    geo.setIndex(idx);
+    geometries.push(geo);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 1;
+    scene.add(mesh);
+    return mesh;
+  };
+  /* And where each meets the ground, by day and night alike, a small soft
+     dark ring round its foot: the earth under a tree's spread, out of the
+     sky's light. (The long shadows above fall away from it; without this
+     the foot still stood on a lit hill.) */
+  const contactMat = new THREE.ShaderMaterial({
+    vertexShader: "attribute float aR; varying float vR; void main() { vR = aR; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: "uniform float uAmt; varying float vR; void main() { float a = (1.0 - smoothstep(0.1, 1.0, vR)) * uAmt; if (a < 0.004) discard; gl_FragColor = vec4(0.0, 0.02, 0.0, a); }",
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: { uAmt: { value: 0 } },
+  });
+  materials.push(contactMat);
+  const treeContact = (() => {
+    if (!plantAt || !plantSize || !plantKind) return null;
+    const pos: number[] = [], rr: number[] = [], idx: number[] = [];
+    const sizes = plantSize.array as Float32Array;
+    const RIM = 10;
+    for (let i = 0, n = 0; i < sizes.length; i++) {
+      const sz = sizes[i];
+      if (sz <= 0) continue;
+      const x = plantAt[i * 3], z = plantAt[i * 3 + 2];
+      const rad = sz * (Math.round(plantKind[i]) === 3 ? 0.55 : 0.5);
+      const b = n * (RIM + 1);
+      pos.push(x, groundAt(x, z) + 0.006, z);
+      rr.push(0);
+      for (let k = 0; k < RIM; k++) {
+        const a = (k / RIM) * Math.PI * 2;
+        const cx = x + Math.cos(a) * rad, cz = z + Math.sin(a) * rad;
+        pos.push(cx, groundAt(cx, cz) + 0.006, cz);
+        rr.push(1);
+        idx.push(b, b + 1 + k, b + 1 + ((k + 1) % RIM));
+      }
+      n++;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("aR", new THREE.Float32BufferAttribute(rr, 1));
+    geo.setIndex(idx);
+    geometries.push(geo);
+    const mesh = new THREE.Mesh(geo, contactMat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 1;
+    scene.add(mesh);
+    return mesh;
+  })();
+  const treeShadows = buildTreeShadows(noonSun, treeShadowMat);
+  const treeNightShadows = buildTreeShadows(nightLight, treeNightMat);
   // On a tall, narrow screen, aimed nearer it, so it stays in the picture.
   const endAtNarrow = foot
     .clone()
@@ -6103,9 +6313,94 @@ export async function createChortenScene(
   let first = true;
   let wide = true;
 
+  /* QUALITY: the page keeps itself smooth on whatever device opens it, as
+     108.bt's does. After a few seconds' settling it averages real frames,
+     ninety at a time: past 21 ms (under about 48 a second) it draws at 0.85
+     of the pixels, down to 0.6 of them (and never under the screen's own:
+     sharpness, above); under 17.5 ms for two such spells running it steps
+     back up. A step it fell back from is not tried again for a minute, so it
+     never see-saws, unless the camera has gone on to another shot (FORGET
+     units off): the page's chapters differ in cost twofold, and a heavy
+     one's step down was held through the light ones after it. Pixels are what the finish costs by: fewer of them is
+     the one change that helps on every device and leaves the picture whole.
+     The lens's blur is off at the lowest. */
+  let quality = 1;
+  let lastNow = 0;
+  let startAt = -1;
+  let changedAt = -Infinity;
+  let fellAt = -Infinity;
+  let failedAt = Infinity; // the share it last fell back from
+  const failedFrom = new THREE.Vector3(); // and where the camera was
+  const FORGET = 8;
+  let sum = 0;
+  let count = 0;
+  let good = 0;
+  // (Sizes set in pixels, the lights' and dots' least and most, scaled with
+  // it: left as they were, each light grew against the smaller picture and
+  // the mandala's thousands ran together into a white sheet.)
+  const pxBase = new Map<THREE.IUniform, number>();
+  // How much of the first sharpness is drawn now.
+  let drawn = 1;
+  const setQuality = (q: number) => {
+    quality = Math.max(0.6, Math.min(1, q));
+    resize();
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __grQuality?: number }).__grQuality = quality;
+  };
+  const watchFrames = () => {
+    const now = performance.now();
+    const dt = now - lastNow;
+    lastNow = now;
+    // (Not across a pause: a hidden tab, a stall loading, the first frame.)
+    if (dt <= 0 || dt > 250 || document.hidden) return;
+    if (startAt < 0) startAt = now;
+    if (now - startAt < 3000 || now - changedAt < 4000) {
+      sum = count = 0;
+      return;
+    }
+    sum += Math.min(dt, 50);
+    if (++count < 90) return;
+    const avg = sum / count;
+    sum = count = 0;
+    if (avg > 21) {
+      good = 0;
+      fellAt = now;
+      if (quality <= 0.6 + 1e-6) return;
+      failedAt = quality;
+      failedFrom.copy(camera.position);
+      setQuality(quality * 0.85);
+      changedAt = now;
+      return;
+    }
+    if (avg >= 17.5) {
+      good = 0;
+      return;
+    }
+    if (quality >= 1 - 1e-6 || ++good < 2) return;
+    const next = Math.min(1, quality / 0.85);
+    if (next >= failedAt - 1e-6) {
+      if (now - fellAt < 60000 && camera.position.distanceTo(failedFrom) < FORGET) return;
+      failedAt = Infinity;
+    }
+    good = 0;
+    setQuality(next);
+    changedAt = now;
+  };
+
   function resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    renderer.setPixelRatio(sharpness(quality));
+    drawn = renderer.getPixelRatio() / pr;
+    for (const m of materials) {
+      const u = (m as THREE.ShaderMaterial).uniforms;
+      if (!u) continue;
+      for (const k of ["uMinPx", "uMaxPx", "uPx"]) {
+        const un = u[k];
+        if (!un || typeof un.value !== "number") continue;
+        if (!pxBase.has(un)) pxBase.set(un, un.value);
+        un.value = pxBase.get(un)! * drawn;
+      }
+    }
     renderer.setSize(w, h, false);
     composer.setPixelRatio(renderer.getPixelRatio());
     composer.setSize(w, h);
@@ -6120,6 +6415,7 @@ export async function createChortenScene(
     shared.uScale.value = renderer.getContext().drawingBufferHeight;
   }
   resize();
+  if (process.env.NODE_ENV !== "production") (window as unknown as { __grSetQuality?: (q: number) => void }).__grSetQuality = (q) => setQuality(q);
 
   /* Pointer sway, as 108.bt's hero has it: the camera swings up to SWAY
      degrees either way as the pointer crosses the window, left and right
@@ -6414,6 +6710,10 @@ export async function createChortenScene(
   return {
     resize,
     frame(s) {
+      // (Only frames drawn at the page's own pace, not filmed ones.)
+      // (Not while resting: its frames are spaced on purpose.)
+      if (s.dt > 0 && !s.resting) watchFrames();
+      else lastNow = performance.now();
       shared.uTime.value = s.time;
       const a = s.fade;
       // Where on the night's way, and from it how far down the valley to the
@@ -6467,6 +6767,13 @@ export async function createChortenScene(
       // (At noon less of it: the sun on white stone, as the day's, would burn
       // it out and set it glowing.)
       const noonK = THREE.MathUtils.smoothstep(s.daylight, 0.55, 1);
+      // (The trees' shadows with the sun.)
+      treeShadowMat.uniforms.uAmt.value = 0.38 * THREE.MathUtils.smoothstep(s.daylight, 0.45, 0.9) * (1 - solo.uSolo.value);
+      if (treeShadows) treeShadows.visible = treeShadowMat.uniforms.uAmt.value > 0.004;
+      treeNightMat.uniforms.uAmt.value = 0.2 * (1 - THREE.MathUtils.smoothstep(s.daylight, 0.15, 0.5)) * (1 - solo.uSolo.value) * (night.uShow.value as number);
+      if (treeNightShadows) treeNightShadows.visible = treeNightMat.uniforms.uAmt.value > 0.004;
+      contactMat.uniforms.uAmt.value = THREE.MathUtils.lerp(0.45, 0.5, s.daylight) * (1 - solo.uSolo.value) * (night.uShow.value as number);
+      if (treeContact) treeContact.visible = contactMat.uniforms.uAmt.value > 0.004;
       keyLight.intensity = (1.4 + 1.4 * s.daylight) * (1 - 0.45 * noonK);
       // (The chortens' shadows: soft by the moon, firmer in the noon sun.)
       chShadowU.uChAmt.value =
@@ -6500,7 +6807,9 @@ export async function createChortenScene(
       // night.)
       for (const l of siteLamps)
         l.intensity = 1.1 * lamps * (1 + 0.6 * swell) * (1 - beamsOn);
-      bloom.strength = (0.55 + 0.3 * swell) * (1 - 0.65 * noonK);
+      // (Scaled by the render scale: at the governor's coarser steps the same
+      // glow covers more of the frame, and the mandala's lights ran together.)
+      bloom.strength = (0.55 + 0.3 * swell) * (1 - 0.65 * noonK) * (0.4 + 0.6 * Math.min(1, drawn));
       // (By day only the brightest bloom: sunlit white stone stays stone.)
       bloom.threshold = 0.84 + 0.12 * noonK;
       crowdMat.uniforms.uBreath.value = s.breath;
@@ -6845,7 +7154,7 @@ export async function createChortenScene(
               )) *
             (1 - THREE.MathUtils.smoothstep(gatherNow, 0.05, 0.3)) *
             pull;
-      bokeh.enabled = lens > 0.01;
+      bokeh.enabled = lens > 0.01 && quality > 0.65;
       if (bokeh.enabled) {
         const u = bokeh.uniforms as Record<string, THREE.IUniform>;
         u.focus.value = camera.position.distanceTo(firstUp(gatherNow, firstAt));
@@ -7158,6 +7467,9 @@ export async function createChortenScene(
       window.removeEventListener("touchmove", onTouchMove);
       bloom.dispose();
       bokeh.dispose();
+      bokehHalf.dispose();
+      bokehMix.dispose();
+      (bokehMix.material as THREE.ShaderMaterial).dispose();
       grade.dispose();
       composer.dispose();
       renderer.dispose();
