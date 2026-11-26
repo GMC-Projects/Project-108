@@ -48,3 +48,7 @@ Stripe Payment Processing API Documentation*.pdf
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
+scripts/_*_tmp.*
