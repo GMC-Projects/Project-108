@@ -245,7 +245,9 @@ px[..., 3] = 1.0
 both.pixels[:] = px.ravel()
 both.filepath_raw = os.path.join(OUT, "ground-shade.webp")
 both.file_format = "WEBP"
-both.save()
+# (Quality 100: lossless. A plain save() writes lossy WebP at ~90, and its
+# half-resolution colour bleeds the packed channels into each other.)
+both.save(quality=100)
 print("shade", SHADE)
 
 # The area they cover, in the page's x and z.

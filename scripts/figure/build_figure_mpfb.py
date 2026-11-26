@@ -327,11 +327,16 @@ print(f"orb at {tuple(round(v, 3) for v in ORB)}")
 MAN_ORB = Vector([float(x) for x in os.environ.get("MAN_ORB", "0,-0.4,0.68").split(",")])
 if VARIANT != "man":
     k = MAN_ORB.z / ORB.z
-    body.scale = (k, k, k)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     dy = MAN_ORB.y - ORB.y * k
-    body.location.y = dy
-    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    # (Body and garment both, each made the active object first: applied with
+    # the garment left active from the loop above, the body kept its scale
+    # unapplied and everything read from its mesh after was unscaled.)
+    for o in (body, garment):
+        active(o)
+        o.scale = (k, k, k)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        o.location.y = dy
+        bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
     joints = {kk: v * k + Vector((0, dy, 0)) for kk, v in joints.items()}
     ORB = MAN_ORB.copy()
     print(f"fitted by {k:.3f}")
@@ -638,6 +643,10 @@ for ca in list(fig.data.color_attributes):
     if ca.name != "Col":
         fig.data.color_attributes.remove(ca)
 fig.data.color_attributes.active_color = fig.data.color_attributes["Col"]
+# (The exporter's "ACTIVE" colour is the render colour, not the active one:
+# unset, it wrote a blank COLOR_0 and the hair's in COLOR_1, which the page
+# reads as a fallback.)
+fig.data.color_attributes.render_color_index = fig.data.color_attributes.active_color_index
 # The V of the tego's white showing where the gho crosses over at the chest,
 # for the page's shader: the neck's place in the figure's own (glTF) frame.
 print(f"neck at {(round(neck.x, 3), round(neck.z, 3), round(-neck.y, 3))}")

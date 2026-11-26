@@ -75,7 +75,9 @@ def emit_override(kind):
         nt.links.new(tr.outputs[0], mix.inputs[1])
         nt.links.new(emit.outputs[0], mix.inputs[2])
         nt.links.new(mix.outputs[0], out.inputs["Surface"])
-        mat.blend_method = "HASHED" if hasattr(mat, "blend_method") else None
+        # (Dithered cut-out: EEVEE's Render Method since 4.2, blend_method gone.)
+        if hasattr(mat, "surface_render_method"):
+            mat.surface_render_method = "DITHERED"
 
 
 def render_views(name, kind):
@@ -127,6 +129,10 @@ def render_views(name, kind):
         bpy.ops.render.render(write_still=True)
         img = bpy.data.images.load(path)
         px = np.array(img.pixels[:], dtype=np.float32).reshape(TILE, TILE, 4)[::-1]
+        # (The EXR holds colour premultiplied by alpha; the sheet wants it
+        # straight, or every card's outline is darkened and its normals bent.)
+        al = px[..., 3:4]
+        px[..., :3] = np.where(al > 1e-4, px[..., :3] / np.maximum(al, 1e-4), 0.0)
         tiles.append(px)
         bpy.data.images.remove(img)
     print(name, kind, "w", width, "h", height)
@@ -155,7 +161,10 @@ def save(rows, fname):
     img.pixels[:] = arr[::-1].ravel()
     img.filepath_raw = os.path.join(OUT, fname)
     img.file_format = "WEBP"
-    img.save()
+    # (Lossless: the normals' three channels are data, and lossy WebP's
+    # half-resolution colour bleeds them into each other. The page ships a
+    # compressed copy, made from this.)
+    img.save(quality=100)
     print(fname, w, h)
 
 

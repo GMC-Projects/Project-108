@@ -214,5 +214,5 @@ px_[..., 3] = 1
 img.pixels[:] = px_.ravel()
 img.filepath_raw = os.path.join(OUT, "forest.webp")
 img.file_format = "WEBP"
-img.save()
+img.save(quality=100)  # (lossless; a plain save() is lossy WebP)
 print("forest.webp", RES)
