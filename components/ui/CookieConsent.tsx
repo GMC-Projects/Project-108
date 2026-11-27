@@ -12,11 +12,29 @@ function disableAnalytics() {
   }
 }
 
+// Storage can throw (site data blocked, some private modes). Treat that as
+// "nothing stored" and carry on, so the banner never takes the page down.
+function readChoice(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveChoice(value: "granted" | "denied") {
+  try {
+    localStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    // Not remembered; the banner will show again next visit.
+  }
+}
+
 export default function CookieConsent() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = readChoice();
     if (!stored) {
       // First visit — show banner; analytics already running (granted by default)
       setVisible(true);
@@ -27,12 +45,12 @@ export default function CookieConsent() {
   }, []);
 
   function dismiss() {
-    localStorage.setItem(STORAGE_KEY, "granted");
+    saveChoice("granted");
     setVisible(false);
   }
 
   function optOut() {
-    localStorage.setItem(STORAGE_KEY, "denied");
+    saveChoice("denied");
     disableAnalytics();
     setVisible(false);
   }
